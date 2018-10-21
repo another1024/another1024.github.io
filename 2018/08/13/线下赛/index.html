@@ -1,0 +1,289 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8" />
+  
+  <title>线下赛 | Another&#39;s blog</title>
+  <meta name="author" content="another" />
+
+  
+  <meta name="description" content="LIEF通过交换导入导出符号首先看第一个测试程序：
+1234567891011#include &amp;lt;stdio.h&amp;gt;#include &amp;lt;stdlib.h&amp;gt;int main(int argc, char** argv) &amp;#123;  puts(&#34;/bin/sh&#34;);  retu" />
+  
+
+  
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+
+  <meta property="og:title" content="线下赛" />
+  <meta property="og:site_name" content="Another&#39;s blog" />
+
+  
+  
+
+  
+    <meta property="og:image" content="" />
+  
+
+  
+  <link href="/css/images/favicon.ico" rel="icon" />
+  
+
+  <link rel="alternate" href="/atom.xml" title="Another&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+  <!--[if lt IE 9]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  
+
+
+  <!-- baidu webmaster push -->
+  <script src='//push.zhanzhang.baidu.com/push.js'></script>
+
+</head>
+
+
+<body>
+  <header id="header" class="inner"><div class="alignleft">
+  <h1><a href="/">Another&#39;s blog</a></h1>
+  <h2><a href="/"></a></h2>
+</div>
+<nav id="main-nav" class="alignright">
+  <ul>
+    
+      <li><a href="/">Home</a></li>
+    
+      <li><a href="/archives">Archives</a></li>
+    
+  </ul>
+  <div class="clearfix"></div>
+</nav>
+<div class="clearfix"></div></header>
+  <div id="content" class="inner">
+    <div id="main-col" class="alignleft"><div id="wrapper"><article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-08-13T03:54:46.342Z"><a href="/2018/08/13/线下赛/">2018-08-13</a></time>
+      
+      
+  
+    <h1 class="title">线下赛</h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="LIEF"><a href="#LIEF" class="headerlink" title="LIEF"></a>LIEF</h1><h2 id="通过交换导入导出符号"><a href="#通过交换导入导出符号" class="headerlink" title="通过交换导入导出符号"></a>通过交换导入导出符号</h2><p>首先看第一个测试程序：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdio.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdlib.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span>** argv)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="built_in">puts</span>(<span class="string">"/bin/sh"</span>);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> EXIT_SUCCESS;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>我们的目标是让他调用 puts 变成调用 system</p>
+<h2 id="方案一"><a href="#方案一" class="headerlink" title="方案一"></a>方案一</h2><p>修改 libc 中的相关符号，然后使用 LD_LIBRARY_PATH 加载我们修改后的库。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> lief</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">hashme = lief.parse(<span class="string">"hashme"</span>)</span><br><span class="line"></span><br><span class="line">libc = lief.parse(<span class="string">"/lib/x86_64-linux-gnu/libc-2.23.so"</span>)</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line"><span class="comment"># get puts, system symbol</span></span><br><span class="line"></span><br><span class="line">puts_sym = filter(<span class="keyword">lambda</span> e: e.name == <span class="string">"puts"</span>, libc.dynamic_symbols)[<span class="number">0</span>]</span><br><span class="line"></span><br><span class="line">system_sym = filter(<span class="keyword">lambda</span> e: e.name == <span class="string">"system"</span>, libc.dynamic_symbols)[<span class="number">0</span>]</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line"><span class="comment"># swap them</span></span><br><span class="line"></span><br><span class="line">puts_sym.name = <span class="string">"system"</span></span><br><span class="line"></span><br><span class="line">system_sym.name = <span class="string">"puts"</span></span><br><span class="line"></span><br><span class="line">libc.write(<span class="string">"libc.so.6"</span>)</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">print(<span class="string">"done"</span>)</span><br></pre></td></tr></table></figure>
+<h2 id="方案二"><a href="#方案二" class="headerlink" title="方案二"></a>方案二</h2><p>直接修改目标文件的导入符号，代码如下</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> lief</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">hashme = lief.parse(<span class="string">"hashme"</span>)</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line"><span class="comment"># get puts, system symbol</span></span><br><span class="line"></span><br><span class="line">puts_sym = filter(<span class="keyword">lambda</span> e: e.name == <span class="string">"puts"</span>, hashme.imported_symbols)[<span class="number">0</span>]</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line"><span class="comment"># set puts to system</span></span><br><span class="line"></span><br><span class="line">puts_sym.name = <span class="string">"system"</span></span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">hashme.write(<span class="string">"hashme.patch"</span>)</span><br><span class="line"></span><br><span class="line">print(<span class="string">"done"</span>)</span><br></pre></td></tr></table></figure>
+<p>直接增加代码进行patch<br>修改库函数<br>测试程序：<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdio.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdlib.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;math.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> **argv)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (argc != <span class="number">2</span>) &#123;</span><br><span class="line"></span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">"Usage: %s &lt;a&gt; \n"</span>, argv[<span class="number">0</span>]);</span><br><span class="line"></span><br><span class="line">    <span class="built_in">exit</span>(<span class="number">-1</span>);</span><br><span class="line"></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">  <span class="keyword">int</span> a = atoi(argv[<span class="number">1</span>]);</span><br><span class="line"></span><br><span class="line">  <span class="built_in">printf</span>(<span class="string">"exp(%d) = %f\n"</span>, a, <span class="built_in">exp</span>(a));</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>目标是hook exp 函数，直接增加一个 segments ,<br> 然后劫持函数指针到这里。首先编译一个 lib 用来提供用于 hook 的代码。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">gcc -Os -nostdlib -nodefaultlibs -fPIC -Wl,-shared hook.c -o hook</span><br></pre></td></tr></table></figure>
+<p>hook.c 的内容：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">double</span> <span class="title">hook</span><span class="params">(<span class="keyword">double</span> x)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> x + <span class="number">100</span>;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>然后看脚本内容，很清晰。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> lief</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">libm = lief.parse(<span class="string">"/lib/x86_64-linux-gnu/libm-2.23.so"</span>)</span><br><span class="line"></span><br><span class="line">hook = lief.parse(<span class="string">"hook"</span>)</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">segment_added = libm.add(hook.segments[<span class="number">0</span>])</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">print(<span class="string">"Hook inserted at VA: 0x&#123;:06x&#125;"</span>.format(segment_added.virtual_address))</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">exp_symbol = libm.get_symbol(<span class="string">"exp"</span>)</span><br><span class="line"></span><br><span class="line">hook_symbol = hook.get_symbol(<span class="string">"hook"</span>)</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">exp_symbol.value = segment_added.virtual_address + hook_symbol.value</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">libm.write(<span class="string">"libm.so.6"</span>)</span><br></pre></td></tr></table></figure>
+<p>通过地址进行钩子</p>
+<p>libm.patch_address </p>
+<p>通过 got/plt 表 直接劫持程序</p>
+<p>测试程序</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdio.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;stdlib.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;string.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line"><span class="comment">// Damn_YoU_Got_The_Flag</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">char</span> password[] = <span class="string">"\x18\x3d\x31\x32\x03\x05\x33\x09\x03\x1b\x33\x28\x03\x08\x34\x39\x03\x1a\x30\x3d\x3b"</span>;</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">inline</span> <span class="keyword">int</span> <span class="title">check</span><span class="params">(<span class="keyword">char</span>* input)</span></span>;</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">check</span><span class="params">(<span class="keyword">char</span>* input)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; <span class="keyword">sizeof</span>(password) - <span class="number">1</span>; ++i) &#123;</span><br><span class="line"></span><br><span class="line">    password[i] ^= <span class="number">0x5c</span>;</span><br><span class="line"></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> <span class="built_in">memcmp</span>(password, input, <span class="keyword">sizeof</span>(password) - <span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> **argv)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (check(argv[<span class="number">1</span>]) == <span class="number">0</span>) &#123;</span><br><span class="line"></span><br><span class="line">    <span class="built_in">puts</span>(<span class="string">"You got it !!"</span>);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> EXIT_SUCCESS;</span><br><span class="line"></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">  <span class="built_in">puts</span>(<span class="string">"Wrong"</span>);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> EXIT_FAILURE;</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">hook.c 内容，hook <span class="built_in">memcpy</span>, 打印内容。</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"arch/x86_64/syscall.c"</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> stdout 1</span></span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line"><span class="comment">//gcc -nostdlib -nodefaultlibs -fPIC -Wl,-shared hook.c -o hook</span></span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">my_memcmp</span><span class="params">(<span class="keyword">const</span> <span class="keyword">void</span>* lhs, <span class="keyword">const</span> <span class="keyword">void</span>* rhs, <span class="keyword">int</span> n)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">const</span> <span class="keyword">char</span> msg[] = <span class="string">"Hook add\n"</span>;</span><br><span class="line"></span><br><span class="line">  _write(<span class="built_in">stdout</span>, msg, <span class="keyword">sizeof</span>(msg));</span><br><span class="line"></span><br><span class="line">  _write(<span class="built_in">stdout</span>, (<span class="keyword">const</span> <span class="keyword">char</span>*)lhs, n);</span><br><span class="line"></span><br><span class="line">  _write(<span class="built_in">stdout</span>, <span class="string">"\n"</span>, <span class="number">2</span>);</span><br><span class="line"></span><br><span class="line">  _write(<span class="built_in">stdout</span>, (<span class="keyword">const</span> <span class="keyword">char</span>*)rhs, n);</span><br><span class="line"></span><br><span class="line">  _write(<span class="built_in">stdout</span>, <span class="string">"\n"</span>, <span class="number">2</span>);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>hook 脚本</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> lief</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">crackme = lief.parse(<span class="string">"crackme.bin"</span>)</span><br><span class="line"></span><br><span class="line">hook = lief.parse(<span class="string">"hook"</span>)</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">segment_added = crackme.add(hook.segments[<span class="number">0</span>])</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">my_memcmp = hook.get_symbol(<span class="string">"my_memcmp"</span>)</span><br><span class="line"></span><br><span class="line">my_memcmp_addr = segment_added.virtual_address + my_memcmp.value</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">crackme.patch_pltgot(<span class="string">'memcmp'</span>, my_memcmp_addr)</span><br><span class="line"></span><br><span class="line">crackme.write(<span class="string">"crackme.hooked"</span>)</span><br></pre></td></tr></table></figure>
+<h1 id="线下攻防经验小结"><a href="#线下攻防经验小结" class="headerlink" title="线下攻防经验小结"></a>线下攻防经验小结</h1><pre><code>首先正常比赛会提供提交 flag 的接口，
+接口地址类似 http://172.16.4.1/Common/submitAnswer。一般我们需要根据主办方给出的文档要求通过接口提交 flag。在比赛中要求接口地址使用 Post 方式提交，
+提交时带两个参数，一个是 Answer，
+其值为获取到的 flag 字符串，而另一个则是 token
+ ，其值为各个队伍的队伍 Token。
+然后比赛时主办方也会给每个参赛队伍提供一台用于分析网络流量的虚拟机 ，选手需要访问地址下载流量文件进行分析。
+</code></pre><h2 id="关注-Gamebox-状态"><a href="#关注-Gamebox-状态" class="headerlink" title="关注 Gamebox 状态"></a>关注 Gamebox 状态</h2><pre><code>比赛中可以查看己方和敌方 GameBox 状态。
+时刻关注可以尽早获取比赛信息，根据信息做出调整。
+对于己方 GameBox，有存在如下原因造成 GameBox 被 down 掉：
+程序 patch 失误导致服务不可用。
+在程序 patch 完之后要进入下一轮关注 GameBox 状态，
+如果 patch 失误导致不可用，需要及时挽救。
+对手不正当攻击导致 GameBox 不可用。如果发现，需要及时补救。
+主办方加强程序 check。这种情况主办方会对所有队员进行通知公告。在 GameBox 状态墙上的状态会显示该题的各队 GameBox 大面积不可用。
+</code></pre><h2 id="敌人gamebox"><a href="#敌人gamebox" class="headerlink" title="敌人gamebox"></a>敌人gamebox</h2><pre><code>对于敌方 GameBox。我们可以获取以下信息。
+根据攻击流观测哪些队伍的 GameBox 没有防御成功。
+针对这些队伍可以更多地实现攻击
+有队伍拿出一血时。可以根据各队 GameBox     状态推断出一血队伍是否已经写出利用脚本。
+写出利用脚本后可以观测己方是否做好了防御。
+分清区段与端口
+比赛过程中会主办方会安排好合理的网段分布。
+</code></pre><h2 id="比赛的一些策略"><a href="#比赛的一些策略" class="headerlink" title="比赛的一些策略"></a>比赛的一些策略</h2><pre><code>在比赛过程中，不宜死耗在一道题上，
+由于一血的优势性，在比赛过程中更应该全面了解赛题难度，
+先从 简单题 开始进行分析，步步为营。
+比赛过程中，两极会严重分化。
+应该着力打击和自己实力相当和比自己队伍更强的队伍，
+尤其是分数相差无几的情况下，更要严防严守。
+比赛中 NPC 会不定时发出攻击流量。从攻击流量中可以得到 payload。
+一定要把 NPC 往死里打。
+在开赛初可以将所有的管理密码都设置为同一个密码，
+这样方便队员登录管理。在初期将所有文件备份下来供队内分享。
+</code></pre>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+</div></div>
+    <aside id="sidebar" class="alignright">
+  
+
+  
+<div class="widget tag">
+  <h3 class="title">archives</h3>
+  <ul class="entry">
+    
+      <li>
+        <a href="/2018/10/21/hexo/">搭建博客</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/glibc malloc和free/">glibc malloc和free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/doublefree/">double free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/brop/">brop</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/bpf/">bpf</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/afl/">afl</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/patch/">patch</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hor/">House-Of-Rabbit</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/分布式/">分布式搭建</a>
+      </li>
+    
+      <li>
+        <a href="/2018/08/20/hfo/">house-of-orange</a>
+      </li>
+    
+      <li>
+        <a href="/2018/08/13/线下赛/">线下赛</a>
+      </li>
+    
+      <li>
+        <a href="/2018/08/13/漏洞挖掘/">漏洞挖掘</a>
+      </li>
+    
+      <li>
+        <a href="/2018/08/13/文件读写内存实例/">文件读写内存实例</a>
+      </li>
+    
+      <li>
+        <a href="/2018/08/13/堆溢出/">堆溢出</a>
+      </li>
+    
+      <li>
+        <a href="/2018/08/13/内核编译/">内核编译</a>
+      </li>
+    
+      <li>
+        <a href="/2018/08/13/关闭nx与反弹shell/">关闭nx与反弹shell</a>
+      </li>
+    
+      <li>
+        <a href="/2018/08/13/windows机制/">windows机制</a>
+      </li>
+    
+      <li>
+        <a href="/2018/08/13/两道内核/">两道内核</a>
+      </li>
+    
+      <li>
+        <a href="/2018/08/13/windbg学习总结/">windbg学习总结</a>
+      </li>
+    
+      <li>
+        <a href="/2018/08/13/web/">随意码的web</a>
+      </li>
+    
+      <li>
+        <a href="/2018/08/13/sulb/">slub</a>
+      </li>
+    
+      <li>
+        <a href="/2018/08/13/pwnable.tw/">pwnable.tw总结</a>
+      </li>
+    
+      <li>
+        <a href="/2018/08/13/rtd/">return to dl-resolve</a>
+      </li>
+    
+      <li>
+        <a href="/2018/08/13/offbyone/">off-by-one</a>
+      </li>
+    
+  </ul>
+</div>
+
+
+  
+
+  
+</aside>
+    <div class="clearfix"></div>
+  </div>
+  <footer id="footer" class="inner"><div class="alignleft">
+  <p>
+  
+  &copy; 2018 another
+  
+  All rights reserved.</p>
+  <p>Powered by <a href="http://hexo.io/" target="_blank">Hexo</a></p>
+</div>
+<div class="clearfix"></div>
+
+<script>window._bd_share_config={"common":{"bdSnsKey":{},"bdText":"","bdMini":"1","bdMiniList":false,"bdPic":"","bdStyle":"2","bdSize":"16"},"share":{}};with(document)0[(getElementsByTagName('head')[0]||body).appendChild(createElement('script')).src='http://bdimg.share.baidu.com/static/api/js/share.js?v=89860593.js?cdnversion='+~(-new Date()/36e5)];</script></footer>
+  <script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+(function($){
+  $('.fancybox').fancybox();
+})(jQuery);
+</script>
+
+
+<div id='bg'></div>
+</body>
+</html>

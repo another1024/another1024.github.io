@@ -1,0 +1,348 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8" />
+  
+  <title>glibc malloc和free | Another&#39;s blog</title>
+  <meta name="author" content="another" />
+
+  
+  <meta name="description" content="主arenaheap和arena
+根据他们在堆中出现的次序，第一个是heap_info，即Heap这个结构的元数据，即它本身拥有的用来指示在它上面的操作的数据。
+123456typedef struct _heap_info &amp;#123;mstate ar_ptr; /* 这个heap所在的aren" />
+  
+
+  
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+
+  <meta property="og:title" content="glibc malloc和free" />
+  <meta property="og:site_name" content="Another&#39;s blog" />
+
+  
+  
+
+  
+    <meta property="og:image" content="" />
+  
+
+  
+  <link href="/css/images/favicon.ico" rel="icon" />
+  
+
+  <link rel="alternate" href="/atom.xml" title="Another&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+  <!--[if lt IE 9]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  
+
+
+  <!-- baidu webmaster push -->
+  <script src='//push.zhanzhang.baidu.com/push.js'></script>
+
+</head>
+
+
+<body>
+  <header id="header" class="inner"><div class="alignleft">
+  <h1><a href="/">Another&#39;s blog</a></h1>
+  <h2><a href="/"></a></h2>
+</div>
+<nav id="main-nav" class="alignright">
+  <ul>
+    
+      <li><a href="/">Home</a></li>
+    
+      <li><a href="/archives">Archives</a></li>
+    
+  </ul>
+  <div class="clearfix"></div>
+</nav>
+<div class="clearfix"></div></header>
+  <div id="content" class="inner">
+    <div id="main-col" class="alignleft"><div id="wrapper"><article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-10-21T06:01:10.110Z"><a href="/2018/10/21/glibc malloc和free/">2018-10-21</a></time>
+      
+      
+  
+    <h1 class="title">glibc malloc和free</h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="主arena"><a href="#主arena" class="headerlink" title="主arena"></a>主arena</h1><pre><code>heap和arena
+根据他们在堆中出现的次序，第一个是heap_info，即Heap这个结构的元数据，即它本身拥有的用来指示在它上面的操作的数据。
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">typedef struct _heap_info &#123;</span><br><span class="line">mstate ar_ptr; /* 这个heap所在的arena */</span><br><span class="line">struct _heap_info *prev; /* 上一个heap */</span><br><span class="line">size_t size; /* 字节为单位的当前大小 */</span><br><span class="line">char pad[-5 * SIZE_SZ &amp; MALLOC_ALIGN_MASK]; /* 用于对齐 */ </span><br><span class="line">&#125;heap_info;</span><br></pre></td></tr></table></figure>
+<pre><code>从这个结构当中，
+我们可以推断出heap和arena是有一个对应关系的，
+以及prev指针说明了heap本身是由一个链表连接的，
+事实上是一个循环单链表。
+</code></pre><h1 id="state结构"><a href="#state结构" class="headerlink" title="state结构"></a>state结构</h1><pre><code>或者叫mstate，
+虽然名称似乎和arena没有关系，
+但是其实这个结构是用来表示arena的。
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">struct malloc_state &#123;</span><br><span class="line">mutex_t mutex; /* 同步访问相关，互斥锁 */</span><br><span class="line">int flags; /* 标志位，以前是max_fast，在一些老的文章上可能还使用的这个说法，比如phrack */</span><br><span class="line">mfastbinptr fastbins[NFASTBINS]; /* fastbins，之后会说到,是一个chunk的链表 */</span><br><span class="line">mchunkptr top; /* top chunk，一个特殊的chunk，在之后会说到 */</span><br><span class="line">mchunkptr last_remainder; /* 最后一次拆分top chunk得到的剩余内容，之后会说到 */</span><br><span class="line">mchunkptr bins[BINS * 2]; /* bins，一个chunk的链表的数组，之后会说到 */</span><br><span class="line">unsigned int binmap[BINMAPSIZE]; /* bins是否为空的一个位图 */</span><br><span class="line">struct malloc_state *next; /* 链表，下一个malloc_state的位置 */</span><br><span class="line">INTERNAL_SIZE_T system_mem;</span><br><span class="line">INTERNAL_SIZE_T max_system_mem;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="Mutex"><a href="#Mutex" class="headerlink" title="Mutex"></a>Mutex</h2><pre><code>用来保证同步，在调用一个函数，比如malloc的时候，
+其实调用的是public_xxx的函数，
+而这个函数的认为就是先试图进行加锁，
+这个锁就是这里的mutex了，然后再调用_int_xxx函数，
+这个函数才是真正的内部实现。
+</code></pre><h2 id="flags"><a href="#flags" class="headerlink" title="flags"></a>flags</h2><pre><code>用来表示一些当前arena的特征，比如是否有fastbin chunk存在，内存是否是非连续的等等。
+</code></pre><h2 id="fasbins-…"><a href="#fasbins-…" class="headerlink" title="fasbins[…]"></a>fasbins[…]</h2><pre><code>这个数组存的是fastbin的链表，
+每一个数组中的元素对应一个fastbin的链表，
+bin为chunk的链表，保存没有被使用的chunk，
+用来避免多次使用系统调用分配。总共有4种bin，
+包括fastbin,small bin, large bin和unsorted bin,
+主要用于分配，在分配的时候，会根据大小去查找到相应的bin，
+然后通过在bin中删除某一个块来进行分配。
+Fastbin是4种bin中唯一使用单链表表示的bin
+</code></pre><h2 id="top"><a href="#top" class="headerlink" title="top"></a>top</h2><pre><code>top chunk，较为特殊的一个chunk，
+虽然其数据结构(后文会谈到的chunk的结构)和一般chunk无异，
+但是他相当于堆可用内存的一个边界，
+是唯一一个可以自行增长的chunk，
+每当在各个bin当中去找空余的内存找不到的时候就会来这儿取一个块，
+剩下的就是remainder块，也是新的top块
+</code></pre><h2 id="last-remainder"><a href="#last-remainder" class="headerlink" title="last_remainder"></a>last_remainder</h2><pre><code>上面的top chunk已经谈到了，
+其实就是从top chunk当中分出去之后剩下的那一个块
+</code></pre><h2 id="bins-…"><a href="#bins-…" class="headerlink" title="bins[…]"></a>bins[…]</h2><pre><code>在fastbin的解释当中我们提到了有4种bin，
+由于只有fastbin是单链表表示，所以fastbin是单独表示的，
+其他bin则都使用了这个bins数组，下标1是unsorted bin，
+2到63是small bin，64到126是large bin，共126个bin。
+</code></pre><h2 id="bitmap-…"><a href="#bitmap-…" class="headerlink" title="bitmap[…]"></a>bitmap[…]</h2><pre><code>表示bin数组当中某一个下标的bin是否为空，
+用来在分配的时候加速 .next 
+下一个arena，是一个循环单链表
+</code></pre><h2 id="system-mem和max-system-mem"><a href="#system-mem和max-system-mem" class="headerlink" title="system_mem和max_system_mem"></a>system_mem和max_system_mem</h2><pre><code>用来跟踪当前被系统分配的内存总量，
+INTERNAL_SIZE_T数据类型在大多数系统上都是size_t
+</code></pre><h1 id="chunk"><a href="#chunk" class="headerlink" title="chunk"></a>chunk</h1><hr>
+<p>32位中chunk结构为</p>
+<p>4字节前一个堆块大小</p>
+<p>4字节本堆块size（最后三位flag）</p>
+<p>快表中</p>
+<p>[</p>
+<p>4字节（不使用堆块的情况下前一个堆块指针）</p>
+<p>]</p>
+<p>非快表</p>
+<p>[</p>
+<p>4字节（不使用堆块的情况下前一个堆块指针）</p>
+<p>4字节（不使用堆块的情况下后一个堆块指针）</p>
+<p>]</p>
+<p>64位翻倍</p>
+<h1 id="malloc"><a href="#malloc" class="headerlink" title="malloc"></a>malloc</h1><hr>
+<pre><code>第一步：如果进程没有关联的分配区，
+就通过sysmalloc从操作系统分配内存mmap 
+
+第二步：从fastbin查找对应大小的chunk并返回（效验下一块是否存在），
+如果失败进入第三步。 
+
+第三步：从smallbin查找对应大小的chunk并返回,
+如果分配失败将fastbin中的空闲chunk合并放入unsortedbin中，
+进入第四步。
+（如果前一个空闲则unlink前一个然后合并，
+然后检查下一个是否空闲。
+如果相邻的下一个chunk不是top chunk，
+并且下一个chunk不在使用中，
+就继续合并，否则，就清除下一个chunk的PREV_INUSE，
+表示该chunk已经空闲了。 然后将刚刚合并完的chunk添加进unsorted_bin中，
+unsorted_bin也是一个双向链表。 ） 
+
+第四步：遍历unsortedbin，
+从unsortedbin中查找对应大小的chunk
+并返回如果满足拆开的大小则拆成两部分，
+后面部分放回unsortedbin，
+根据大小将unsortedbin中的空闲chunk插入smallbin或者largebin中。
+进入第五步。 
+
+第五步：从largebin指定位置查找对应大小的chunk并返回，
+如果失败进入第六步。 
+
+第六步：从largebin中大于指定位置的双向链表中
+查找对应大小的chunk并返回，如果失败进入第七步。 
+
+第七步：从topchunk中分配对应大小的chunk并返回，
+topchunk中没有足够的空间，就查找fastbin中是否有空闲chunk
+如果有，就合并fastbin中的chunk并加入到unsortedbin中，
+然后跳回第四步。如果fastbin中没有空闲chunk，
+就通过sysmalloc从操作系统分配内存。
+
+sysmalloc先试图扩大top chunk，如果失败就申请一个新的topchunk
+并释放原来的topchunk。如果申请新的则扩大阈值
+</code></pre><h1 id="free"><a href="#free" class="headerlink" title="free"></a>free</h1><hr>
+<pre><code>下面对整个_int_free函数做个总结。 
+首先检查将要释放的chunk是否属于fastbin，
+如果属于就将其添加到fastbin中
+（检查下一块的大小是    否为合理的数值）。 
+然后检查该chunk是否是由mmap分配的，
+如果不是找前一个unlink合并，
+就根据其下一个chunk的类型添加到unsortedbin
+或者合并到top chunk中。 
+接着，如果释放的chunk的大小大于一定的阀值，
+就需要通过systrim缩小主分配区的大小，
+或者通过heap_trim缩小非主分配区的大小。
+ （检查unsortbin是否完好无损）
+最后如果该chunk是由mmap的分配的，
+通过munmap_chunk释放。
+</code></pre>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+</div></div>
+    <aside id="sidebar" class="alignright">
+  
+
+  
+<div class="widget tag">
+  <h3 class="title">archives</h3>
+  <ul class="entry">
+    
+      <li>
+        <a href="/2018/10/21/线下赛/">线下赛</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/漏洞挖掘/">漏洞挖掘</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/文件读写内存实例/">文件读写内存实例</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/堆溢出/">堆溢出</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/分布式/">分布式搭建</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/内核编译/">内核编译</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/关闭nx与反弹shell/">关闭nx与反弹shell</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/两道内核/">两道内核</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/windows机制/">windows机制</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/windbg学习总结/">windbg学习总结</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/web/">随意码的web</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/sulb/">slub</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/rtd/">return to dl-resolve</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/pwnable.tw/">pwnable.tw总结</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/patch/">patch</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/offbyone/">off-by-one</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hor/">House-Of-Rabbit</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hfo/">house-of-orange</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hexo/">搭建博客</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/glibc malloc和free/">glibc malloc和free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/doublefree/">double free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/brop/">brop</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/bpf/">bpf</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/afl/">afl</a>
+      </li>
+    
+  </ul>
+</div>
+
+
+  
+
+  
+</aside>
+    <div class="clearfix"></div>
+  </div>
+  <footer id="footer" class="inner"><div class="alignleft">
+  <p>
+  
+  &copy; 2018 another
+  
+  All rights reserved.</p>
+  <p>Powered by <a href="http://hexo.io/" target="_blank">Hexo</a></p>
+</div>
+<div class="clearfix"></div>
+
+<script>window._bd_share_config={"common":{"bdSnsKey":{},"bdText":"","bdMini":"1","bdMiniList":false,"bdPic":"","bdStyle":"2","bdSize":"16"},"share":{}};with(document)0[(getElementsByTagName('head')[0]||body).appendChild(createElement('script')).src='http://bdimg.share.baidu.com/static/api/js/share.js?v=89860593.js?cdnversion='+~(-new Date()/36e5)];</script></footer>
+  <script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+(function($){
+  $('.fancybox').fancybox();
+})(jQuery);
+</script>
+
+
+<div id='bg'></div>
+</body>
+</html>

