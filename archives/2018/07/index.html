@@ -3,19 +3,16 @@
 <head>
   <meta charset="utf-8" />
   
-  <title>堆溢出 | Another&#39;s blog</title>
+  <title>Archives: 2018/7 | Another&#39;s blog</title>
   <meta name="author" content="another" />
 
-  
-  <meta name="description" content="House of PrimeHouse of MindHouse of ForceHouse of LoreHouse of SpiritHouse of Mind
-House of Mind这个技巧中，攻击者欺骗 glibc malloc 来使用由他伪造的 arena。伪造的 arena 以这种形" />
   
 
   
 
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 
-  <meta property="og:title" content="堆溢出" />
+  
   <meta property="og:site_name" content="Another&#39;s blog" />
 
   
@@ -58,46 +55,25 @@ House of Mind这个技巧中，攻击者欺骗 glibc malloc 来使用由他伪�
 </nav>
 <div class="clearfix"></div></header>
   <div id="content" class="inner">
-    <div id="main-col" class="alignleft"><div id="wrapper"><article class="post">
-  
-  <div class="post-content">
-    <header>
-      
-        <div class="icon"></div>
-     
-      
-      
-  
-    <h1 class="title">堆溢出</h1>
-  
+    <div id="main-col" class="alignleft"><div id="wrapper">
+<h2 class="archive-title">2018/7</h2>
 
-    </header>
-    <div class="entry">
-      
-        <p>House of Prime<br>House of Mind<br>House of Force<br>House of Lore<br>House of Spirit<br>House of Mind</p>
-<h1 id="House-of-Mind"><a href="#House-of-Mind" class="headerlink" title="House of Mind"></a>House of Mind</h1><p>这个技巧中，攻击者欺骗 glibc malloc 来使用由他伪造的 arena。伪造的 arena 以这种形式构造，unsorted bin 的 fd 包含free的 GOT 条目地址 -12。因此现在当漏洞程序释放某个块的时候，free的 GOT 条目被覆盖为 shellcode 的地址。在成功覆盖 GOT 之后，当漏洞程序调用free，shellcode 就会执行。</p>
-<h1 id="House-of-Force"><a href="#House-of-Force" class="headerlink" title="House of Force"></a>House of Force</h1><p>这个技巧中，攻击者滥用 top 块的大小，并欺骗 glibc malloc 使用 top 块来服务于一个非常大的内存请求（大于堆系统内存大小）。现在当新的 malloc 请求产生时，free的 GOT 表就会覆盖为 shellcode 地址。因此从现在开始，无论free何时调用，shellcode 都会执行。</p>
-<h1 id="House-of-Force-1"><a href="#House-of-Force-1" class="headerlink" title="House of Force"></a>House of Force</h1><p>这个技巧中，攻击者滥用 top 块的大小，并欺骗 glibc malloc 使用 top 块来服务于一个非常大的内存请求（大于堆系统内存大小）。现在当新的 malloc 请求产生时，free的 GOT 表就会覆盖为 shellcode 地址。因此从现在开始，无论free何时调用，shellcode 都会执行。</p>
-<h1 id="House-of-Spirit"><a href="#House-of-Spirit" class="headerlink" title="House of Spirit"></a>House of Spirit</h1><p>在这个技巧中，攻击者欺骗 glibc malloc 来返回一个块，它位于栈中（而不是堆中）。这允许攻击者覆盖储存在栈中的返回地址。</p>
 
-      
-    </div>
+  <div class="archive">
     
-    <footer>
-        <div class="alignright">
-          
-
+      <article class="post">
+        <div class="post-content">
+          <header>
+            <div class="icon"></div>
+           
+            
+              <h1 class="title"><a href="/2018/07/07/各种脚本/">各种脚本（比赛时候懒得现写）</a></h1>
+            
+          </header>
         </div>
-        
-        
-        <!-- partial('post/share') -->
-      <div class="clearfix"></div>
-    </footer>
+      </article>
+    
   </div>
-</article>
-
-
-
 </div></div>
     <aside id="sidebar" class="alignright">
   
