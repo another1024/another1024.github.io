@@ -1,0 +1,274 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8" />
+  
+  <title>afl | Another&#39;s blog</title>
+  <meta name="author" content="another" />
+
+  
+  <meta name="description" content="afl-fuzz技术初探目录
+安装lzma-sdk安装ucl安装zlib编译upx
+afl-fuzz技术初探转载请注明出处:http://www.cnblogs.com/WangAoBo/p/8280352.html
+参考了:
+http://pwn4.fun/2017/09/21/AFL%E6%8A" />
+  
+
+  
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+
+  <meta property="og:title" content="afl" />
+  <meta property="og:site_name" content="Another&#39;s blog" />
+
+  
+  
+
+  
+    <meta property="og:image" content="" />
+  
+
+  
+  <link href="/css/images/favicon.ico" rel="icon" />
+  
+
+  <link rel="alternate" href="/atom.xml" title="Another&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+  <!--[if lt IE 9]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  
+
+
+  <!-- baidu webmaster push -->
+  <script src='//push.zhanzhang.baidu.com/push.js'></script>
+
+</head>
+
+
+<body>
+  <header id="header" class="inner"><div class="alignleft">
+  <h1><a href="/">Another&#39;s blog</a></h1>
+  <h2><a href="/"></a></h2>
+</div>
+<nav id="main-nav" class="alignright">
+  <ul>
+    
+      <li><a href="/">Home</a></li>
+    
+      <li><a href="/archives">Archives</a></li>
+    
+  </ul>
+  <div class="clearfix"></div>
+</nav>
+<div class="clearfix"></div></header>
+  <div id="content" class="inner">
+    <div id="main-col" class="alignleft"><div id="wrapper"><article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+     
+      
+      
+  
+    <h1 class="title">afl</h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <p>afl-fuzz技术初探<br>目录</p>
+<p>安装lzma-sdk<br>安装ucl<br>安装zlib<br>编译upx</p>
+<p>afl-fuzz技术初探<br>转载请注明出处:<a href="http://www.cnblogs.com/WangAoBo/p/8280352.html" target="_blank" rel="noopener">http://www.cnblogs.com/WangAoBo/p/8280352.html</a></p>
+<p>参考了:</p>
+<p><a href="http://pwn4.fun/2017/09/21/AFL%E6%8A%80%E6%9C%AF%E4%BB%8B%E7%BB%8D/" target="_blank" rel="noopener">http://pwn4.fun/2017/09/21/AFL%E6%8A%80%E6%9C%AF%E4%BB%8B%E7%BB%8D/</a></p>
+<p><a href="http://blog.csdn.net/youkawa/article/details/45696317" target="_blank" rel="noopener">http://blog.csdn.net/youkawa/article/details/45696317</a></p>
+<p><a href="https://stfpeak.github.io/2017/06/12/AFL-Cautions/" target="_blank" rel="noopener">https://stfpeak.github.io/2017/06/12/AFL-Cautions/</a></p>
+<p><a href="http://blog.csdn.net/abcdyzhang/article/details/53487683" target="_blank" rel="noopener">http://blog.csdn.net/abcdyzhang/article/details/53487683</a></p>
+<h1 id="安装afl"><a href="#安装afl" class="headerlink" title="安装afl"></a>安装afl</h1><pre><code>下载最新源码
+解压并安装:
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">bash $make $sudo make all</span><br></pre></td></tr></table></figure>
+<p>​    </p>
+<h2 id="有源码的afl-fuzz"><a href="#有源码的afl-fuzz" class="headerlink" title="有源码的afl-fuzz"></a>有源码的afl-fuzz</h2><pre><code>这里以fuzz upx为例进行测试
+
+编译upx
+upx项目地址([*https://github.com/upx/upx*)
+因为afl会对有源码的程序进行重新编译,因此需要修改upx的Makefile
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">$git clone https://github.com/upx/upx.git</span><br><span class="line">$cd upx</span><br><span class="line">$vim Makefile</span><br><span class="line">CC = /usr/local/bin/afl-gcc #添加此句</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">$cd src</span><br><span class="line">$vim Makefile</span><br><span class="line">CXX    ?= /usr/local/bin/afl-g++ #将CXX改成afl-g++</span><br></pre></td></tr></table></figure>
+<h3 id="安装lzma-sdk"><a href="#安装lzma-sdk" class="headerlink" title="安装lzma-sdk"></a>安装lzma-sdk</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$git submodule update --init --recursive</span><br></pre></td></tr></table></figure>
+<h3 id="安装ucl"><a href="#安装ucl" class="headerlink" title="安装ucl"></a>安装ucl</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">bash $cd ucl-1.03 $./configure $make $sudo make install</span><br><span class="line">bash $export UPX_UCCLDIR=&quot;~/ucl-1.03&quot;</span><br></pre></td></tr></table></figure>
+<h3 id="安装zlib"><a href="#安装zlib" class="headerlink" title="安装zlib"></a>安装zlib</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">$wget http://pkgs.fedoraproject.org/repo/pkgs/zlib/zlib-1.2.11.tar.xz/sha512/b7f50ada138c7f93eb7eb1631efccd1d9f03a5e77b6c13c8b757017b2d462e19d2d3e01c50fad60a4ae1bc86d431f6f94c72c11ff410c25121e571953017cb67/zlib-1.2.11.tar.xz</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">$cd zlib-1.2.11/</span><br><span class="line">$./configure</span><br><span class="line">$sudo make install</span><br></pre></td></tr></table></figure>
+<h3 id="编译upx"><a href="#编译upx" class="headerlink" title="编译upx"></a>编译upx</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$cd ~/upx</span><br><span class="line">$make all</span><br></pre></td></tr></table></figure>
+<p>此时可在/src目录下找到upx.out文件<br>对upx进行fuzz测试</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$cd ~</span><br><span class="line">$mkdir afl_in afl_out</span><br></pre></td></tr></table></figure>
+<p>afl_in存放测试用例,afl_out存放fuzz结果<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$cp /usr/bin/file afl_in</span><br><span class="line">$afl-fuzz -i afl_in -o afl_out ~/upx/src/upx.out @@</span><br></pre></td></tr></table></figure></p>
+<p>@@会代替测试样本,即相当于执行了upx.out file</p>
+<p>对于从stdin获取输入的程序,可以使用<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"># afl-fuzz -i afl_in -o afl_out ./file</span><br></pre></td></tr></table></figure></p>
+<h2 id="无源码的afl-fuzz"><a href="#无源码的afl-fuzz" class="headerlink" title="无源码的afl-fuzz"></a>无源码的afl-fuzz</h2><pre><code>对无源码的程序进行fuzz一般有两种方法:
+对二进制文件进行插桩
+使用-n选项进行传统的fuzz测试
+这里主要介绍第一种,该方法是通过afl-qemu实现的.
+</code></pre><p>编译afl版的qemu<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ cd qemu_mode </span><br><span class="line">$ ./build_qemu_support.sh</span><br></pre></td></tr></table></figure></p>
+<p>另外需要把afl加入环境变量<br>例如：编辑/etc/profile文件，添加CLASSPATH变量<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"># vi /etc/profile </span><br><span class="line">export CLASSPATH=./JAVA_HOME/lib;$JAVA_HOME/jre/lib</span><br></pre></td></tr></table></figure></p>
+<h3 id="对readelf进行fuzz"><a href="#对readelf进行fuzz" class="headerlink" title="对readelf进行fuzz"></a>对readelf进行fuzz</h3><p>以readelf为例<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">$mkdir afl_in afl_out</span><br><span class="line">$cp test afl_in</span><br><span class="line">test为自己准备的测试elf</span><br><span class="line">$sudo cp /usr/bin/readelf .</span><br><span class="line">$afl_fuzz -i afl_in -o afl_out -Q readelf -a @@</span><br></pre></td></tr></table></figure></p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+</div></div>
+    <aside id="sidebar" class="alignright">
+  
+
+  
+<div class="widget tag">
+  <h3 class="title">archives</h3>
+  <ul class="entry">
+    
+      <li>
+        <a href="/2018/11/10/tcache/">tcache</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/漏洞挖掘/">漏洞挖掘</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/文件读写内存实例/">文件读写内存实例</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/堆溢出/">堆溢出</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/分布式/">分布式搭建</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/内核编译/">内核编译</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/关闭nx与反弹shell/">关闭nx与反弹shell</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/两道内核/">驱动漏洞</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/windows机制/">windows机制</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/windbg学习总结/">windbg学习总结</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/web/">随意码的web</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/rtd/">return-to-dl-reslove</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/pwnable.tw/">pwnable.tw总结</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/patch/">patch</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/offbyone/">off-by-one</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hor/">House-Of-Rabbit</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hfo/">house-of-orange</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hexo/">搭建博客</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/glibc malloc和free/">glibc malloc和free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/doublefree/">double free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/brop/">brop</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/bpf/">bpf</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/afl/">afl</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/各种脚本/">各种脚本（比赛时候懒得现写）</a>
+      </li>
+    
+  </ul>
+</div>
+
+
+  
+
+  
+</aside>
+    <div class="clearfix"></div>
+  </div>
+  <footer id="footer" class="inner"><div class="alignleft">
+  <p>
+  
+  &copy; 2018 another
+  
+  All rights reserved.</p>
+  <p>Powered by <a href="http://hexo.io/" target="_blank">Hexo</a></p>
+</div>
+<div class="clearfix"></div>
+
+<script>window._bd_share_config={"common":{"bdSnsKey":{},"bdText":"","bdMini":"1","bdMiniList":false,"bdPic":"","bdStyle":"2","bdSize":"16"},"share":{}};with(document)0[(getElementsByTagName('head')[0]||body).appendChild(createElement('script')).src='http://bdimg.share.baidu.com/static/api/js/share.js?v=89860593.js?cdnversion='+~(-new Date()/36e5)];</script></footer>
+  <script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+(function($){
+  $('.fancybox').fancybox();
+})(jQuery);
+</script>
+
+
+<div id='bg'></div>
+</body>
+</html>

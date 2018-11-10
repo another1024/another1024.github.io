@@ -1,0 +1,278 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8" />
+  
+  <title>brop | Another&#39;s blog</title>
+  <meta name="author" content="another" />
+
+  
+  <meta name="description" content="BROP的使用环境：不能直接构造ROP gadget
+目标服务在崩溃后会重新运行
+Canary不会重置，没有ASLR这是因为Blind ROP其实核心部分都是类似于爆破的概念，  
+因此会不断的引起目标服务崩溃，挂起，如果崩溃后不能重新启动，  
+且启动后Canary或者其他地址改变，那么之前的爆破" />
+  
+
+  
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+
+  <meta property="og:title" content="brop" />
+  <meta property="og:site_name" content="Another&#39;s blog" />
+
+  
+  
+
+  
+    <meta property="og:image" content="" />
+  
+
+  
+  <link href="/css/images/favicon.ico" rel="icon" />
+  
+
+  <link rel="alternate" href="/atom.xml" title="Another&#39;s blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+  <!--[if lt IE 9]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  
+
+
+  <!-- baidu webmaster push -->
+  <script src='//push.zhanzhang.baidu.com/push.js'></script>
+
+</head>
+
+
+<body>
+  <header id="header" class="inner"><div class="alignleft">
+  <h1><a href="/">Another&#39;s blog</a></h1>
+  <h2><a href="/"></a></h2>
+</div>
+<nav id="main-nav" class="alignright">
+  <ul>
+    
+      <li><a href="/">Home</a></li>
+    
+      <li><a href="/archives">Archives</a></li>
+    
+  </ul>
+  <div class="clearfix"></div>
+</nav>
+<div class="clearfix"></div></header>
+  <div id="content" class="inner">
+    <div id="main-col" class="alignleft"><div id="wrapper"><article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+     
+      
+      
+  
+    <h1 class="title">brop</h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h2 id="BROP的使用环境："><a href="#BROP的使用环境：" class="headerlink" title="BROP的使用环境："></a>BROP的使用环境：</h2><pre><code>不能直接构造ROP gadget
+目标服务在崩溃后会重新运行
+</code></pre><h2 id="Canary不会重置，没有ASLR"><a href="#Canary不会重置，没有ASLR" class="headerlink" title="Canary不会重置，没有ASLR"></a>Canary不会重置，没有ASLR</h2><pre><code>这是因为Blind ROP其实核心部分都是类似于爆破的概念，  
+因此会不断的引起目标服务崩溃，挂起，如果崩溃后不能重新启动，  
+且启动后Canary或者其他地址改变，那么之前的爆破也就无意义了。  
+那么BROP每一步在做什么呢。
+</code></pre><h2 id="爆破Canary："><a href="#爆破Canary：" class="headerlink" title="爆破Canary："></a>爆破Canary：</h2><pre><code>当我们获取到崩溃长度后，根据
+Canary-&gt;EBP-&gt;Ret
+的栈结构，我们可以开始爆破Canary，爆破的方法就是一字节一字节爆破。
+</code></pre><h2 id="获取Hang-addr和PLT："><a href="#获取Hang-addr和PLT：" class="headerlink" title="获取Hang addr和PLT："></a>获取Hang addr和PLT：</h2><pre><code>随后就是找hang gadget了，这个也叫stop gadget。
+这种特殊的地址，既不会造成Nginx崩溃，也不会造成Nginx返回内容，
+而是让进程进入无限循环，挂起或者sleep的状态，
+它是我们后面寻找BROP gadget的重要依据。
+plt的原理和hang gadget很像。
+在这之前我大概说一下为什么找plt的原理和hang gadget很像。
+plt项是连续的，而且在0字节，和6字节之后执行的内容都会正常进入后续处理，
+而不会崩溃或有返回，因此只要连续有多个16字节都会让进程block且每个16字节地址+6之后，
+也会block，那么这就有可能是个plt项。
+</code></pre><h2 id="找到BROP-gadget："><a href="#找到BROP-gadget：" class="headerlink" title="找到BROP gadget："></a>找到BROP gadget：</h2><pre><code>接下来，有了hang gadget，我们就可以找到BROP gadget了，这个BROPgadget，是我们组成在开头提到通过write方法dump内存的重要部分，
+和ROP gadget的概念很像，为了组成这个write函数，需要三个参数，
+也就是需要三个ROP gadget：
+pop rdi,ret; 
+pop rsi,ret;  
+pop rdx,ret;
+因为在64位Linux中，参数不是靠push寄存器入栈决定的，
+而是由寄存器本身决定的，这三个参数对应的就是rdi，rsi和rdx寄存器中的内容。
+因此我们利用hang gadget来暴力搜索这些BROPgadget，如何判断呢？
+在ret后放很多hangaddr，只要命中pop ret，pop pop ret这种gadget，都会进入block状态，通过这种方法，我们找到6个pop ret，就能找到一个在linux下常见的结构，通过计算这个结构的偏移，
+就能得到pop rsi,ret和pop rdi,ret了。
+</code></pre><h2 id="找到strcmp-plt和write-plt"><a href="#找到strcmp-plt和write-plt" class="headerlink" title="找到strcmp plt和write plt"></a>找到strcmp plt和write plt</h2><pre><code>这一步完成后，我们就需要进行strcmp和write对应plt项的查找了，
+为什么要找strcmp呢，因为strcmp的汇编功能是对rdx赋予一个长度值，
+通过这种方法可以对rdx，
+也就是第三个参数赋值，因为在.text字段中很难找到pop rdx,ret这样的gadget。
+找这两个plt项，需要利用这两个plt项的特性，
+比如strcmp就是对比两个字符串内容。如果两个字符串相等，
+没有崩溃，且不相等，crash的话，这就是一个strcmp。
+</code></pre><h2 id="Dump内存，执行shellcode"><a href="#Dump内存，执行shellcode" class="headerlink" title="Dump内存，执行shellcode"></a>Dump内存，执行shellcode</h2><pre><code>跳出内存完成正常攻击，
+或者使用libcdatabase找出libc版本
+</code></pre>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+</div></div>
+    <aside id="sidebar" class="alignright">
+  
+
+  
+<div class="widget tag">
+  <h3 class="title">archives</h3>
+  <ul class="entry">
+    
+      <li>
+        <a href="/2018/11/10/tcache/">tcache</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/漏洞挖掘/">漏洞挖掘</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/文件读写内存实例/">文件读写内存实例</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/堆溢出/">堆溢出</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/分布式/">分布式搭建</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/内核编译/">内核编译</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/关闭nx与反弹shell/">关闭nx与反弹shell</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/两道内核/">驱动漏洞</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/windows机制/">windows机制</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/windbg学习总结/">windbg学习总结</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/web/">随意码的web</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/rtd/">return-to-dl-reslove</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/pwnable.tw/">pwnable.tw总结</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/patch/">patch</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/offbyone/">off-by-one</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hor/">House-Of-Rabbit</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hfo/">house-of-orange</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/hexo/">搭建博客</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/glibc malloc和free/">glibc malloc和free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/doublefree/">double free</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/brop/">brop</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/bpf/">bpf</a>
+      </li>
+    
+      <li>
+        <a href="/2018/10/21/afl/">afl</a>
+      </li>
+    
+      <li>
+        <a href="/2018/07/07/各种脚本/">各种脚本（比赛时候懒得现写）</a>
+      </li>
+    
+  </ul>
+</div>
+
+
+  
+
+  
+</aside>
+    <div class="clearfix"></div>
+  </div>
+  <footer id="footer" class="inner"><div class="alignleft">
+  <p>
+  
+  &copy; 2018 another
+  
+  All rights reserved.</p>
+  <p>Powered by <a href="http://hexo.io/" target="_blank">Hexo</a></p>
+</div>
+<div class="clearfix"></div>
+
+<script>window._bd_share_config={"common":{"bdSnsKey":{},"bdText":"","bdMini":"1","bdMiniList":false,"bdPic":"","bdStyle":"2","bdSize":"16"},"share":{}};with(document)0[(getElementsByTagName('head')[0]||body).appendChild(createElement('script')).src='http://bdimg.share.baidu.com/static/api/js/share.js?v=89860593.js?cdnversion='+~(-new Date()/36e5)];</script></footer>
+  <script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+(function($){
+  $('.fancybox').fancybox();
+})(jQuery);
+</script>
+
+
+<div id='bg'></div>
+</body>
+</html>
