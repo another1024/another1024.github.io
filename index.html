@@ -66,6 +66,184 @@
       
       
   
+    <h1 class="title"><a href="/2018/11/27/MemGC/">几种安全机制</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="MemGC"><a href="#MemGC" class="headerlink" title="MemGC"></a>MemGC</h1><p>memgc是edge的一个防止uaf的机制。</p>
+<h2 id="1、分配"><a href="#1、分配" class="headerlink" title="1、分配"></a>1、分配</h2><p>分配内存时候将一个标记插入chunk中。</p>
+<h2 id="2-释放"><a href="#2-释放" class="headerlink" title="2.释放"></a>2.释放</h2><p>当程序释放内存时，并不回收内存，而是清理标记为。</p>
+<h2 id="3-回收"><a href="#3-回收" class="headerlink" title="3.回收"></a>3.回收</h2><p>当释放的内存到达一定数量，进行扫描，只有没有标记并且在堆栈寄存器中都没有引用的chunk才会被真正回收。</p>
+<h1 id="CFG"><a href="#CFG" class="headerlink" title="CFG"></a>CFG</h1><p>检测程序间接跳转地址是否合理，在间接跳转前调用检测函数。</p>
+<p>访问一个bitmap（称为CFGBitmap），其表示在进程空间内所有函数的起始位置。在进程空间内每8个字节的状态对应CFGBitmap中的一位。如果在每组8字节中有函数的起始地址，则在CFGBitmap中对应的位设置为1；否则设置为0。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">一个例子</span><br><span class="line"></span><br><span class="line">目标地址 ：</span><br><span class="line">0x00b613a0 = ‭00000000 10110110 00010011 10100000‬ (b)</span><br><span class="line">首先取高位的3个字节：00000000 10110110 00010011 = 0x00b613</span><br><span class="line">那么CFGbitmap的基地址加上 0x00b613 就是指向一个字节单元的指针。</span><br><span class="line">这个指针最终取到的假设是：</span><br><span class="line">CFGBitmap ：0x10100444 = 0001 0000 0001 0000 0000 0100 0100 0100(b)</span><br><span class="line">接着判断目标地址是否以0x10对齐：地址 &amp; 0xf 是否等于 0 ；</span><br><span class="line"></span><br><span class="line">如果等于0，那偏移是：最低字节二进制位的前5位，这里就是 10100；</span><br><span class="line">若不等于0，则偏移是： 10100|0x1。</span><br><span class="line">这里的例子，0x00b613a0 &amp; 0xf = 0 ，所以偏移： 1010 0 = 20 (d)</span><br><span class="line">这个偏移就是该函数在CFGbitmap中第20位的位置上，若这个位置是1，说明该函数调用是合法有效的，反之则不是。</span><br><span class="line">那么：</span><br><span class="line">CFGBitmap ：0x10100444 = 0001 0000 0001 0000 0000 0100 0100 0100(b)</span><br><span class="line">第20位加粗的 1 ，说明这个调用合法有效。</span><br></pre></td></tr></table></figure>
+<p>绕过CFG保护的思路还包括跳转到有效的API地址（如LoadLibrary）[41]、覆盖堆栈数据（如返回地址）</p>
+<h1 id="VTGuard"><a href="#VTGuard" class="headerlink" title="VTGuard"></a>VTGuard</h1><ul>
+<li>用以检测vftable指针的修改，使用一个canary存储在每个有效虚表的特定位置。vftable使用前，代码会检查canary的值。</li>
+<li>因此攻击者需要去leak/brute-force这个canary值，放在自己伪造的虚表中。</li>
+</ul>
+<p>目前这个只对edge部分类有效</p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+     
+      
+      
+  
+    <h1 class="title"><a href="/2018/11/15/debug-vm分析/">debug-vm分析</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="debug-vm分析"><a href="#debug-vm分析" class="headerlink" title="debug-vm分析"></a>debug-vm分析</h1><p>分析下强网杯的虚拟机题目。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">程序大到看不懂，字符串查看</span><br><span class="line">T%02xthread:%02x;</span><br><span class="line">发现是gdb server stub</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">ncat -vc ./debug-vm -kl 0.0.0.0 4444</span><br><span class="line">挂起程序</span><br><span class="line">gdb远程连接上去</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">Could not check ASLR: Couldn&apos;t get randomize_va_space</span><br><span class="line">Could not check ASLR: Couldn&apos;t get personality</span><br><span class="line">LEGEND: STACK | HEAP | CODE | DATA | RWX | RODATA</span><br><span class="line">[──────────────────────────────────REGISTERS───────────────────────────────────]</span><br><span class="line"> EAX  0 ◂— 0x0</span><br><span class="line"> EBX  0 ◂— 0x0</span><br><span class="line"> ECX  0 ◂— 0x0</span><br><span class="line"> EDX  0 ◂— 0x0</span><br><span class="line"> EDI  0 ◂— 0x0</span><br><span class="line"> ESI  0 ◂— 0x0</span><br><span class="line"> EBP  0 ◂— 0x0</span><br><span class="line"> ESP  0 ◂— 0x0</span><br><span class="line"> EIP  0 ◂— 0x0</span><br><span class="line">[────────────────────────────────────DISASM────────────────────────────────────]</span><br><span class="line"> ► 0x0     inc    edx</span><br><span class="line">   0x1     add    byte ptr [ecx], al</span><br><span class="line">   0x3     add    byte ptr [eax], al</span><br><span class="line">   0x5     add    byte ptr [edx + 1], al</span><br><span class="line">   0x8     add    dword ptr [eax], eax</span><br><span class="line">   0xa     add    byte ptr [eax], al</span><br><span class="line">   0xc     inc    edx</span><br><span class="line">   0xd     add    al, byte ptr [eax]</span><br><span class="line">   0xf     add    byte ptr [eax], al</span><br><span class="line">   0x11    add    byte ptr [eax + 2], cl</span><br><span class="line">   0x14    add    byte ptr fs:[eax], al</span><br><span class="line">[────────────────────────────────────STACK─────────────────────────────────────]</span><br><span class="line">00:0000│ eax ebx ecx edx edi esi ebp esp eip eflags  0 ◂— 0x0</span><br><span class="line">01:0004│                                             4 ◂— 0x4</span><br><span class="line">[──────────────────────────────────BACKTRACE───────────────────────────────────]</span><br><span class="line"> ► f 0        0</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">逆向花了好大功夫，网上神一句不难，这东西魔改过，不能照着字符串直接搜。</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">首先搜索$符号找到gdb_read_byte</span><br><span class="line">然后顺着这个函数找到调用的函数gdb_handlesig</span><br><span class="line">gdb_read_byte里面有个输出字符的函数put_buffer </span><br><span class="line">下面是gdb_handle_packet</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br></pre></td><td class="code"><pre><span class="line">gdb通信协议</span><br><span class="line">协议定义</span><br><span class="line">        GDB RemoteSerial Protocol（RSP）是一种简单的，通过串口线、网络等至少支持半双工通信的媒介进行ASCII消息传输的协议。</span><br><span class="line"></span><br><span class="line">        RSP包以$符号作为数据包的开始，后跟一个或多个用于组成要发送的消息的ASCII字节，并以#作为数据包的结束。再#后，还有两个16进制的ASCII字符作为要发送的消息的校验和。一个完整的RSP协议数据包如下：</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">$m4015bc,2#5a</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">        消息的接收方会立即返回‘+’表示正确接收数据，或‘-’表示没有正确接收数据。当返回‘-’时，GDB会将错误码返回给用户，并无条件挂起GDB进程。</span><br><span class="line"></span><br><span class="line">目标机按接收到的指令次序，依次将信息输出在GDB的console中。除非GDB进程中有其他的命令正在执行，否则来自目标机的信息将会在任意时刻输出在console中。</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">set debug remote 1查看交互信息</span><br><span class="line">Sending packet: $T1#85...Ack</span><br><span class="line">Packet received: OK</span><br><span class="line">Sending packet: $m5624f000,1#91...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $me6b53000,1#bf...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">0x00000000 in ?? ()</span><br><span class="line">Sending packet: $m5624f888,4#ac...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $me6b5314d,4#fb...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $me6b5314d,4#fb...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $m65,4#38...Ack</span><br><span class="line">Packet received: 00000000</span><br><span class="line">Sending packet: $m0,4#fd...Ack</span><br><span class="line">Packet received: 42000100</span><br><span class="line">Sending packet: $m10042,4#c4...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $m0,4#fd...Ack</span><br><span class="line">Packet received: 42000100</span><br><span class="line">Sending packet: $m10042,4#c4...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $m0,4#fd...Ack</span><br><span class="line">Packet received: 42000100</span><br><span class="line">Sending packet: $m10042,4#c4...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $m0,4#fd...Ack</span><br><span class="line">Packet received: 42000100</span><br></pre></td></tr></table></figure>
+<p>附上rsp协议。<a href="https://blog.csdn.net/HMSIWTV/article/details/8759129" target="_blank" rel="noopener">https://blog.csdn.net/HMSIWTV/article/details/8759129</a></p>
+<p>然后是虚拟机的漏洞挖掘，不特别，不搞了。</p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+     
+      
+      
+  
+    <h1 class="title"><a href="/2018/11/13/符号表恢复/">符号表恢复</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="符号表恢复"><a href="#符号表恢复" class="headerlink" title="符号表恢复"></a>符号表恢复</h1><h2 id="flair"><a href="#flair" class="headerlink" title="flair"></a>flair</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">pelf.exe ./libgmp.a ./a.pat</span><br><span class="line">skipped 1, total 510</span><br><span class="line">sigmake.exe ./a.pat b.sig</span><br><span class="line">b.sig: modules/leaves: 462/509, COLLISIONS: 3</span><br><span class="line">See the documentation to learn how to resolve collisions.</span><br></pre></td></tr></table></figure>
+<h2 id="rizzo"><a href="#rizzo" class="headerlink" title="rizzo"></a>rizzo</h2><p>安装rizzo插件</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">arm架构的libc在 /usr/arm-linux-gnueabihf/lib里面</span><br><span class="line">file--&gt;Produce file--&gt;Rizzo signature file使用rizzo</span><br><span class="line"> file--&gt;Load file--&gt;Rizzo signature file加载符号</span><br></pre></td></tr></table></figure>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+     
+      
+      
+  
+    <h1 class="title"><a href="/2018/11/13/arm架构初探/">arm架构利用</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="arm架构漏洞利用"><a href="#arm架构漏洞利用" class="headerlink" title="arm架构漏洞利用"></a>arm架构漏洞利用</h1><h2 id="环境搭建"><a href="#环境搭建" class="headerlink" title="环境搭建"></a>环境搭建</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sudo apt-get install gdb-multiarch</span><br><span class="line">qemu安装</span><br><span class="line">apt search &quot;libc6&quot; | grep ARCH</span><br></pre></td></tr></table></figure>
+<h2 id="typo题"><a href="#typo题" class="headerlink" title="typo题"></a>typo题</h2><p>静态连接符号表恢复，参见静态表恢复文章</p>
+<p>qemu打开程序</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">qemu-arm -g 1234  ./typo</span><br><span class="line">这道题是静态连接所以不需要-L，但是动态连接的程序需要这样 -L /usr/mipsel-linux-gnu/</span><br><span class="line">gdb-multiarch ./typo -q</span><br><span class="line">target remote localhost:1234</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"> ► 0x8b98    mov    fp, #0</span><br><span class="line">   0x8b9c    mov    lr, #0</span><br><span class="line">   0x8ba0    pop    &#123;r1&#125;</span><br><span class="line">   0x8ba4    mov    r2, sp</span><br><span class="line">   0x8ba8    str    r2, [sp, #-4]!</span><br><span class="line">   0x8bac    str    r0, [sp, #-4]!</span><br><span class="line">   0x8bb0    ldr    ip, [pc, #0x10]</span><br><span class="line">   0x8bb4    str    ip, [sp, #-4]!</span><br><span class="line">   0x8bb8    ldr    r0, [pc, #0xc]</span><br><span class="line">   0x8bbc    ldr    r3, [pc, #0xc]</span><br><span class="line">   0x8bc0    bl     #0x9ebc</span><br><span class="line">───────────────────────────────────[ STACK ]────────────────────────────────────</span><br><span class="line">00:0000│ sp  0xf6fff1a0 ◂— 0x1</span><br><span class="line">01:0004│     0xf6fff1a4 —▸ 0xf6fff334 ◂— &apos;./typo&apos;</span><br><span class="line">02:0008│     0xf6fff1a8 ◂— 0x0</span><br><span class="line">03:000c│     0xf6fff1ac —▸ 0xf6fff33b ◂— 0x752f3d5f (&apos;_=/u&apos;)</span><br><span class="line">04:0010│     0xf6fff1b0 —▸ 0xf6fff34f ◂— 0x54554158 (&apos;XAUT&apos;)</span><br><span class="line">05:0014│     0xf6fff1b4 —▸ 0xf6fff372 ◂— 0x5353454c (&apos;LESS&apos;)</span><br><span class="line">06:0018│     0xf6fff1b8 —▸ 0xf6fff394 ◂— 0x5f4b5447 (&apos;GTK_&apos;)</span><br><span class="line">07:001c│     0xf6fff1bc —▸ 0xf6fff3a7 ◂— 0x5f474458 (&apos;XDG_&apos;)</span><br><span class="line">─────────────────────────────────[ BACKTRACE ]──────────────────────────────────</span><br><span class="line"> ► f 0     8b98</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">.text:00008B9C                 MOV     LR, #0</span><br><span class="line">.text:00008BA0                 LDR     R1, [SP+arg_0],#4</span><br><span class="line">.text:00008BA4                 MOV     R2, SP</span><br><span class="line">.text:00008BA8                 STR     R2, [SP,#-4+arg_0]!</span><br><span class="line">.text:00008BAC                 STR     R0, [SP,#var_4]!</span><br><span class="line">.text:00008BB0                 LDR     R12, =__libc_thread_freeres</span><br><span class="line">.text:00008BB4                 STR     R12, [SP,#4+var_8]!</span><br><span class="line">.text:00008BB8                 LDR     R0, =sub_8F00//这个函数是main</span><br><span class="line">.text:00008BBC                 LDR     R3, =sub_A5EC</span><br><span class="line">.text:00008BC0                 BL      sub_9EBC</span><br><span class="line">.text:00008BC4                 BL      sub_F0E0</span><br></pre></td></tr></table></figure>
+<p>arm架构按r0，r1的顺序使用寄存器，所以让r0为/bin/sh再调用system就好了</p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+     
+      
+      
+  
     <h1 class="title"><a href="/2018/11/10/tls/">tls</a></h1>
   
 
@@ -2097,6 +2275,22 @@ xor al
 <div class="widget tag">
   <h3 class="title">archives</h3>
   <ul class="entry">
+    
+      <li>
+        <a href="/2018/11/27/MemGC/">几种安全机制</a>
+      </li>
+    
+      <li>
+        <a href="/2018/11/15/debug-vm分析/">debug-vm分析</a>
+      </li>
+    
+      <li>
+        <a href="/2018/11/13/符号表恢复/">符号表恢复</a>
+      </li>
+    
+      <li>
+        <a href="/2018/11/13/arm架构初探/">arm架构利用</a>
+      </li>
     
       <li>
         <a href="/2018/11/10/tls/">tls</a>

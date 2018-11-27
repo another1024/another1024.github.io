@@ -3,16 +3,22 @@
 <head>
   <meta charset="utf-8" />
   
-  <title>Archives: 2018/11 | Another&#39;s blog</title>
+  <title>几种安全机制 | Another&#39;s blog</title>
   <meta name="author" content="another" />
 
+  
+  <meta name="description" content="MemGCmemgc是edge的一个防止uaf的机制。
+1、分配分配内存时候将一个标记插入chunk中。
+2.释放当程序释放内存时，并不回收内存，而是清理标记为。
+3.回收当释放的内存到达一定数量，进行扫描，只有没有标记并且在堆栈寄存器中都没有引用的chunk才会被真正回收。
+CFG检测程序间接跳转" />
   
 
   
 
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 
-  
+  <meta property="og:title" content="几种安全机制" />
   <meta property="og:site_name" content="Another&#39;s blog" />
 
   
@@ -55,85 +61,54 @@
 </nav>
 <div class="clearfix"></div></header>
   <div id="content" class="inner">
-    <div id="main-col" class="alignleft"><div id="wrapper">
-<h2 class="archive-title">2018/11</h2>
+    <div id="main-col" class="alignleft"><div id="wrapper"><article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+     
+      
+      
+  
+    <h1 class="title">几种安全机制</h1>
+  
 
+    </header>
+    <div class="entry">
+      
+        <h1 id="MemGC"><a href="#MemGC" class="headerlink" title="MemGC"></a>MemGC</h1><p>memgc是edge的一个防止uaf的机制。</p>
+<h2 id="1、分配"><a href="#1、分配" class="headerlink" title="1、分配"></a>1、分配</h2><p>分配内存时候将一个标记插入chunk中。</p>
+<h2 id="2-释放"><a href="#2-释放" class="headerlink" title="2.释放"></a>2.释放</h2><p>当程序释放内存时，并不回收内存，而是清理标记为。</p>
+<h2 id="3-回收"><a href="#3-回收" class="headerlink" title="3.回收"></a>3.回收</h2><p>当释放的内存到达一定数量，进行扫描，只有没有标记并且在堆栈寄存器中都没有引用的chunk才会被真正回收。</p>
+<h1 id="CFG"><a href="#CFG" class="headerlink" title="CFG"></a>CFG</h1><p>检测程序间接跳转地址是否合理，在间接跳转前调用检测函数。</p>
+<p>访问一个bitmap（称为CFGBitmap），其表示在进程空间内所有函数的起始位置。在进程空间内每8个字节的状态对应CFGBitmap中的一位。如果在每组8字节中有函数的起始地址，则在CFGBitmap中对应的位设置为1；否则设置为0。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">一个例子</span><br><span class="line"></span><br><span class="line">目标地址 ：</span><br><span class="line">0x00b613a0 = ‭00000000 10110110 00010011 10100000‬ (b)</span><br><span class="line">首先取高位的3个字节：00000000 10110110 00010011 = 0x00b613</span><br><span class="line">那么CFGbitmap的基地址加上 0x00b613 就是指向一个字节单元的指针。</span><br><span class="line">这个指针最终取到的假设是：</span><br><span class="line">CFGBitmap ：0x10100444 = 0001 0000 0001 0000 0000 0100 0100 0100(b)</span><br><span class="line">接着判断目标地址是否以0x10对齐：地址 &amp; 0xf 是否等于 0 ；</span><br><span class="line"></span><br><span class="line">如果等于0，那偏移是：最低字节二进制位的前5位，这里就是 10100；</span><br><span class="line">若不等于0，则偏移是： 10100|0x1。</span><br><span class="line">这里的例子，0x00b613a0 &amp; 0xf = 0 ，所以偏移： 1010 0 = 20 (d)</span><br><span class="line">这个偏移就是该函数在CFGbitmap中第20位的位置上，若这个位置是1，说明该函数调用是合法有效的，反之则不是。</span><br><span class="line">那么：</span><br><span class="line">CFGBitmap ：0x10100444 = 0001 0000 0001 0000 0000 0100 0100 0100(b)</span><br><span class="line">第20位加粗的 1 ，说明这个调用合法有效。</span><br></pre></td></tr></table></figure>
+<p>绕过CFG保护的思路还包括跳转到有效的API地址（如LoadLibrary）[41]、覆盖堆栈数据（如返回地址）</p>
+<h1 id="VTGuard"><a href="#VTGuard" class="headerlink" title="VTGuard"></a>VTGuard</h1><ul>
+<li>用以检测vftable指针的修改，使用一个canary存储在每个有效虚表的特定位置。vftable使用前，代码会检查canary的值。</li>
+<li>因此攻击者需要去leak/brute-force这个canary值，放在自己伪造的虚表中。</li>
+</ul>
+<p>目前这个只对edge部分类有效</p>
 
-  <div class="archive">
+      
+    </div>
     
-      <article class="post">
-        <div class="post-content">
-          <header>
-            <div class="icon"></div>
-           
-            
-              <h1 class="title"><a href="/2018/11/27/MemGC/">几种安全机制</a></h1>
-            
-          </header>
+    <footer>
+        <div class="alignright">
+          
+
         </div>
-      </article>
-    
-      <article class="post">
-        <div class="post-content">
-          <header>
-            <div class="icon"></div>
-           
-            
-              <h1 class="title"><a href="/2018/11/15/debug-vm分析/">debug-vm分析</a></h1>
-            
-          </header>
-        </div>
-      </article>
-    
-      <article class="post">
-        <div class="post-content">
-          <header>
-            <div class="icon"></div>
-           
-            
-              <h1 class="title"><a href="/2018/11/13/符号表恢复/">符号表恢复</a></h1>
-            
-          </header>
-        </div>
-      </article>
-    
-      <article class="post">
-        <div class="post-content">
-          <header>
-            <div class="icon"></div>
-           
-            
-              <h1 class="title"><a href="/2018/11/13/arm架构初探/">arm架构利用</a></h1>
-            
-          </header>
-        </div>
-      </article>
-    
-      <article class="post">
-        <div class="post-content">
-          <header>
-            <div class="icon"></div>
-           
-            
-              <h1 class="title"><a href="/2018/11/10/tls/">tls</a></h1>
-            
-          </header>
-        </div>
-      </article>
-    
-      <article class="post">
-        <div class="post-content">
-          <header>
-            <div class="icon"></div>
-           
-            
-              <h1 class="title"><a href="/2018/11/10/tcache/">tcache</a></h1>
-            
-          </header>
-        </div>
-      </article>
-    
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
   </div>
+</article>
+
+
+
 </div></div>
     <aside id="sidebar" class="alignright">
   
