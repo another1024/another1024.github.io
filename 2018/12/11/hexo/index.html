@@ -3,16 +3,22 @@
 <head>
   <meta charset="utf-8" />
   
-  <title>Archives: 2018/7 | Another&#39;s blog</title>
+  <title>搭建博客 | Another&#39;s blog</title>
   <meta name="author" content="another" />
 
+  
+  <meta name="description" content="使用环境 node.js（hexo）  github
+安装所有软件官网下载node.js。
+初始化文件下载安装后，进入一个空目录输入如下代码：
+123$ hexo init limedroid.github.io$ cd limedroid.github.io$ npm install
+更换喜欢的主" />
   
 
   
 
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 
-  
+  <meta property="og:title" content="搭建博客" />
   <meta property="og:site_name" content="Another&#39;s blog" />
 
   
@@ -55,25 +61,57 @@
 </nav>
 <div class="clearfix"></div></header>
   <div id="content" class="inner">
-    <div id="main-col" class="alignleft"><div id="wrapper">
-<h2 class="archive-title">2018/7</h2>
+    <div id="main-col" class="alignleft"><div id="wrapper"><article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        
+      
+  
+    <h1 class="title">搭建博客</h1>
+  
 
+    </header>
+    <div class="entry">
+      
+        <p>使用环境 node.js（hexo）  github</p>
+<h2 id="安装所有软件"><a href="#安装所有软件" class="headerlink" title="安装所有软件"></a>安装所有软件</h2><pre><code>官网下载node.js。
+</code></pre><h2 id="初始化文件"><a href="#初始化文件" class="headerlink" title="初始化文件"></a>初始化文件</h2><pre><code>下载安装后，进入一个空目录输入如下代码：
+</code></pre><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">$</span> hexo init limedroid.github.io</span><br><span class="line"><span class="meta">$</span> cd limedroid.github.io</span><br><span class="line"><span class="meta">$</span> npm install</span><br></pre></td></tr></table></figure>
+<h2 id="更换喜欢的主题"><a href="#更换喜欢的主题" class="headerlink" title="更换喜欢的主题"></a>更换喜欢的主题</h2><pre><code>找到相应的主题
+git clone https://github.com/iissnan/hexo-theme-next themes/next
+到本地
+更改根目录下的_config.yml
+theme: 新主题的名字
+</code></pre><h2 id="进行预览"><a href="#进行预览" class="headerlink" title="进行预览"></a>进行预览</h2><pre><code>分为清除编译预览三部分。
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">$ hexo clean</span><br><span class="line">$ hexo g</span><br><span class="line">$ hexo s</span><br></pre></td></tr></table></figure>
+<h2 id="进行部署"><a href="#进行部署" class="headerlink" title="进行部署"></a>进行部署</h2><pre><code>部署需要做相应的准备，打开根目录下的_config.yml，将最后一部分改为如下格式
+</code></pre><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">deploy:</span><br><span class="line">  type: git</span><br><span class="line">  repo: &lt;repository url&gt;</span><br><span class="line">  branch: [branch]</span><br></pre></td></tr></table></figure>
+<p>注意冒号后要加上空格</p>
+<p>然后执行命令部署</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">npm install hexo-deployer-git --save</span><br><span class="line">hexo d</span><br></pre></td></tr></table></figure>
+<h2 id="注意事项"><a href="#注意事项" class="headerlink" title="注意事项"></a>注意事项</h2><p>git需要添加用户和邮箱才能执行成功，网址为<a href="https://another1024.github.io/" target="_blank" rel="noopener">https://another1024.github.io/</a></p>
 
-  <div class="archive">
+      
+    </div>
     
-      <article class="post">
-        <div class="post-content">
-          <header>
-            <div class="icon"></div>
-            
-            
-              <h1 class="title"><a href="/2018/07/07/各种脚本/">各种脚本（比赛时候懒得现写）</a></h1>
-            
-          </header>
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
-      </article>
-    
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
   </div>
+</article>
+
+
+
 </div></div>
     <aside id="sidebar" class="alignright">
   

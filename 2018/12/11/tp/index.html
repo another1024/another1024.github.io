@@ -3,16 +3,20 @@
 <head>
   <meta charset="utf-8" />
   
-  <title>Archives: 2018/7 | Another&#39;s blog</title>
+  <title>tplink | Another&#39;s blog</title>
   <meta name="author" content="another" />
 
+  
+  <meta name="description" content="tplink下载固件
+binwalk查看信息，mips架构，linux 64系统
+12345678DECIMAL       HEXADECIMAL     DESCRIPTION------------------------------------------------------------" />
   
 
   
 
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 
-  
+  <meta property="og:title" content="tplink" />
   <meta property="og:site_name" content="Another&#39;s blog" />
 
   
@@ -55,25 +59,45 @@
 </nav>
 <div class="clearfix"></div></header>
   <div id="content" class="inner">
-    <div id="main-col" class="alignleft"><div id="wrapper">
-<h2 class="archive-title">2018/7</h2>
+    <div id="main-col" class="alignleft"><div id="wrapper"><article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        
+      
+  
+    <h1 class="title">tplink</h1>
+  
 
+    </header>
+    <div class="entry">
+      
+        <h1 id="tplink"><a href="#tplink" class="headerlink" title="tplink"></a>tplink</h1><p>下载固件</p>
+<p>binwalk查看信息，mips架构，linux 64系统</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">DECIMAL       HEXADECIMAL     DESCRIPTION</span><br><span class="line">--------------------------------------------------------------------------------</span><br><span class="line">13216         0x33A0          CRC32 polynomial table, big endian</span><br><span class="line">14456         0x3878          uImage header, header size: 64 bytes, header CRC: 0x19639265, created: 2018-01-03 05:36:50, image size: 34683 bytes, Data Address: 0x80010000, Entry Point: 0x80010000, data CRC: 0x6881FE43, OS: Linux, CPU: MIPS, image type: Firmware Image, compression type: lzma, image name: &quot;u-boot image&quot;</span><br><span class="line">14520         0x38B8          LZMA compressed data, properties: 0x5D, dictionary size: 8388608 bytes, uncompressed size: 90472 bytes</span><br><span class="line">50752         0xC640          ELF, 32-bit MSB MIPS64 executable, MIPS, version 1 (SYSV)</span><br><span class="line">66816         0x10500         LZMA compressed data, properties: 0x6D, dictionary size: 1048576 bytes, uncompressed size: -1 bytes</span><br><span class="line">793268        0xC1AB4         Squashfs filesystem, little endian, version 4.0, compression:lzma, size: 4290385 bytes, 756 inodes, blocksize: 131072 bytes, created: 2018-11-20 03:42:21</span><br></pre></td></tr></table></figure>
+<p>解压后的.bin用binwalk提取</p>
+<p>binwalk elf ，小端序，ida打开进行分析</p>
 
-  <div class="archive">
+      
+    </div>
     
-      <article class="post">
-        <div class="post-content">
-          <header>
-            <div class="icon"></div>
-            
-            
-              <h1 class="title"><a href="/2018/07/07/各种脚本/">各种脚本（比赛时候懒得现写）</a></h1>
-            
-          </header>
+    <footer>
+        <div class="alignright">
+          
+          <a href='javascript:void(0)' class="share-link bdsharebuttonbox" data-cmd="more">分享</a>
         </div>
-      </article>
-    
+        
+        
+        <!-- partial('post/share') -->
+      <div class="clearfix"></div>
+    </footer>
   </div>
+</article>
+
+
+
 </div></div>
     <aside id="sidebar" class="alignright">
   
